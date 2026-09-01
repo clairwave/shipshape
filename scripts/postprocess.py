@@ -8,10 +8,14 @@ Requires gltfpack on PATH (npm i -g gltfpack) with KTX2 support (--tc).
 """
 import argparse
 import json
+import shutil
 import struct
 import subprocess
 import sys
 from pathlib import Path
+
+GLTFPACK = shutil.which("gltfpack") or shutil.which("gltfpack.cmd") \
+    or r"C:\Users\jn689396\AppData\Roaming\npm\gltfpack.cmd"
 
 
 def tri_count(glb: Path) -> int:
@@ -34,10 +38,10 @@ def tri_count(glb: Path) -> int:
     return tris
 
 
-def postprocess(raw: Path, final: Path, ratio: float = 0.05) -> dict:
+def postprocess(raw: Path, final: Path, ratio: float = 0.25) -> dict:
     final.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
-        ["gltfpack", "-i", str(raw), "-o", str(final),
+        [GLTFPACK, "-i", str(raw), "-o", str(final),
          "-si", str(ratio),          # simplify to ~ratio of source tris
          "-tc",                       # KTX2/BasisU textures
          "-tl", "512",                # texture size cap
@@ -55,7 +59,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("raw", type=Path)
     ap.add_argument("final", type=Path)
-    ap.add_argument("--ratio", type=float, default=0.05)
+    ap.add_argument("--ratio", type=float, default=0.25)
     args = ap.parse_args()
     stats = postprocess(args.raw, args.final, args.ratio)
     print(json.dumps(stats, indent=2))
