@@ -14,8 +14,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-GLTFPACK = shutil.which("gltfpack") or shutil.which("gltfpack.cmd") \
-    or r"C:\Users\jn689396\AppData\Roaming\npm\gltfpack.cmd"
+# native build (BasisU/KTX2 support) preferred; npm build lacks -tc
+_NATIVE = Path(__file__).resolve().parents[1] / "tools" / "gltfpack.exe"
+GLTFPACK = str(_NATIVE) if _NATIVE.exists() else (
+    shutil.which("gltfpack") or shutil.which("gltfpack.cmd")
+    or r"C:\Users\jn689396\AppData\Roaming\npm\gltfpack.cmd")
 
 
 def tri_count(glb: Path) -> int:

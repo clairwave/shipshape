@@ -2,7 +2,7 @@
   "1": {"class_type": "LoadImage", "_meta": {"title": "ShipImage"}, "inputs": {
     "image": "ship.png"}},
   "2": {"class_type": "Hy3D_2_1SimpleMeshGen", "_meta": {"title": "Sampler"}, "inputs": {
-    "model": "hunyuan_3d_v2.1.safetensors", "image": ["1", 0],
+    "model": "hunyuan3d-dit-v2-1.fp16.ckpt", "image": ["1", 0],
     "steps": 50, "guidance_scale": 5.0, "octree_resolution": 384}},
   "3": {"class_type": "Hy3DPostprocessMesh", "_meta": {"title": "Post"}, "inputs": {
     "trimesh": ["2", 0], "remove_floaters": true,

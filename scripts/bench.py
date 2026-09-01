@@ -79,6 +79,9 @@ async def main():
         outdir = ROOT / "out" / "bench" / model
         outdir.mkdir(parents=True, exist_ok=True)
         for img in images:
+            if (outdir / f"{img.stem}.glb").exists():
+                print(f"[skip] {model}/{img.stem}: already done", flush=True)
+                continue
             try:
                 row = await run_model(executor, model, CANDIDATES[model],
                                       img, outdir)
@@ -88,8 +91,10 @@ async def main():
                 print(f"[fail] {model}/{img.stem}: {e}", flush=True)
 
     report = ROOT / "out" / "bench" / "results.jsonl"
-    report.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
-    print(f"=== BENCH DONE: {len(rows)} rows -> {report} ===")
+    with report.open("a", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r) + "\n")
+    print(f"=== BENCH DONE: {len(rows)} rows appended -> {report} ===")
 
 
 asyncio.run(main())

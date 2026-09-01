@@ -27,6 +27,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+
+const DIR = new URLSearchParams(location.search).get('dir') || 'hunyuan2';
 
 const view = document.getElementById('view');
 const scene = new THREE.Scene();
@@ -44,13 +47,18 @@ function resize(){ const w=view.clientWidth,h=view.clientHeight;
   camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h); }
 addEventListener('resize', resize); resize();
 
-const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+const ktx2 = new KTX2Loader()
+  .setTranscoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/basis/')
+  .detectSupport(renderer);
+const loader = new GLTFLoader();
+loader.setMeshoptDecoder(MeshoptDecoder);
+loader.setKTX2Loader(ktx2);
 let current = null;
 function show(name){
   document.querySelectorAll('#list div').forEach(d=>d.classList.toggle('sel', d.textContent===name));
   document.getElementById('label').textContent = name;
   document.getElementById('photo').src = '../testdata/' + name + '.png';
-  loader.load('../out/bench/hunyuan2/' + name + '.glb', g => {
+  loader.load('../out/bench/' + DIR + '/' + name + '.glb', g => {
     if (current) scene.remove(current);
     current = g.scene;
     current.traverse(o=>{ if(o.isMesh){
