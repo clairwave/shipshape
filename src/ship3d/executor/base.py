@@ -12,7 +12,7 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, Field
 
-JobKind = Literal["still", "video", "train", "tts", "lipsync"]
+JobKind = Literal["still", "video", "mesh"]
 
 
 class JobSpec(BaseModel):
