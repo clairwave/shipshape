@@ -192,6 +192,29 @@ def vote(body: dict):
     return {"net": tally}
 
 
+@app.get("/api/archetypes")
+def archetypes():
+    root = ROOT / "archetypes"
+    out = []
+    if root.exists():
+        for d in sorted(root.iterdir()):
+            if d.is_dir():
+                out.append({"folder": d.name,
+                            "variants": sorted(p.name for p in d.glob("*.glb"))})
+    return out
+
+
+@app.get("/archetypes/{folder}/{fname}")
+def archetype_file(folder: str, fname: str):
+    if "/" in folder or ".." in folder or not fname.endswith(".glb") \
+            or "/" in fname or ".." in fname:
+        raise HTTPException(404)
+    p = ROOT / "archetypes" / folder / fname
+    if not p.exists():
+        raise HTTPException(404)
+    return FileResponse(p)
+
+
 @app.get("/models/{mmsi}/{fname}")
 def model_file(mmsi: str, fname: str):
     if fname not in ("model.glb", "photo.png", "meta.json"):

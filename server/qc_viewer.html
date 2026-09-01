@@ -38,6 +38,10 @@
 <div id="side">
   <div id="bar">
     <input id="token" placeholder="QC token" type="password">
+    <select id="mode">
+      <option value="fleet" selected>fleet</option>
+      <option value="archetypes">archetypes</option>
+    </select>
     <select id="filter">
       <option value="">all</option><option value="auto" selected>auto</option>
       <option value="approved">approved</option>
@@ -113,11 +117,48 @@ function show(m){
   });
 }
 
+function showArch(folder, variant){
+  selected = null;
+  document.querySelectorAll('.row').forEach(r=>
+    r.classList.toggle('sel', r.dataset.mmsi===folder+'/'+variant));
+  $('label').textContent = `${folder} / ${variant}`;
+  $('photo').removeAttribute('src'); $('photo').style.display='none';
+  loader.load(`/archetypes/${folder}/${variant}`, g => {
+    if (current) scene.remove(current);
+    current = g.scene;
+    current.traverse(o=>{ if(o.isMesh && !o.geometry.getAttribute('normal'))
+      o.geometry.computeVertexNormals(); });
+    const box = new THREE.Box3().setFromObject(current);
+    const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3()).length();
+    current.position.sub(c);
+    camera.position.set(s*0.95, s*0.5, s*0.95); controls.target.set(0,0,0);
+    scene.add(current);
+  });
+}
+
 async function load(){
+  const list = $('list'); list.innerHTML = '';
+  $('photo').style.display='';
+  if ($('mode').value === 'archetypes'){
+    $('actions').style.visibility = 'hidden';
+    const folders = await (await fetch('/api/archetypes')).json();
+    let first = null;
+    for (const f of folders){
+      f.variants.forEach((v, i) => {
+        const d = document.createElement('div');
+        d.className = 'row'; d.dataset.mmsi = f.folder+'/'+v;
+        d.innerHTML = `<b>${f.folder}</b> <small>variant ${i} · ${v.slice(0,28)}…</small>`;
+        d.onclick = ()=>showArch(f.folder, v); list.appendChild(d);
+        first = first || [f.folder, v];
+      });
+    }
+    if (first) showArch(...first);
+    return;
+  }
+  $('actions').style.visibility = '';
   const st = $('filter').value;
   const r = await fetch(`/api/models?limit=200${st?`&status=${st}`:''}`);
   const models = await r.json();
-  const list = $('list'); list.innerHTML = '';
   for (const m of models){
     const d = document.createElement('div');
     d.className = 'row'; d.dataset.mmsi = m.mmsi;
@@ -127,7 +168,7 @@ async function load(){
   }
   if (models.length) show(models[0]);
 }
-$('refresh').onclick = load; $('filter').onchange = load;
+$('refresh').onclick = load; $('filter').onchange = load; $('mode').onchange = load;
 
 async function act(action){
   if (!selected) return;
