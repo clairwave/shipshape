@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ship3d bench QC</title>
+<style>
+  body { margin:0; display:flex; height:100vh; font:13px system-ui; background:#111; color:#ddd; }
+  #list { width:300px; overflow-y:auto; border-right:1px solid #333; }
+  #list div { padding:8px 12px; cursor:pointer; border-bottom:1px solid #222; }
+  #list div:hover { background:#222; }
+  #list div.sel { background:#1a3a5c; }
+  #view { flex:1; position:relative; }
+  #photo { position:absolute; right:10px; bottom:10px; max-width:280px; max-height:220px;
+           border:1px solid #444; background:#000; }
+  #label { position:absolute; left:10px; top:10px; font-size:15px; }
+</style>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+"three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="list"></div>
+<div id="view"><div id="label"></div><img id="photo"></div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+const view = document.getElementById('view');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a2633);
+const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 100);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+view.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.autoRotate = true; controls.autoRotateSpeed = 2.5;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 2.2));
+const sun = new THREE.DirectionalLight(0xffffff, 2.5); sun.position.set(3,5,2);
+scene.add(sun);
+
+function resize(){ const w=view.clientWidth,h=view.clientHeight;
+  camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h); }
+addEventListener('resize', resize); resize();
+
+const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+let current = null;
+function show(name){
+  document.querySelectorAll('#list div').forEach(d=>d.classList.toggle('sel', d.textContent===name));
+  document.getElementById('label').textContent = name;
+  document.getElementById('photo').src = '../testdata/' + name + '.png';
+  loader.load('../out/bench/hunyuan2/' + name + '.glb', g => {
+    if (current) scene.remove(current);
+    current = g.scene;
+    current.traverse(o=>{ if(o.isMesh){
+      if (!o.geometry.getAttribute('normal')) o.geometry.computeVertexNormals();
+      if (!o.material.map)
+        o.material = new THREE.MeshStandardMaterial({color:0x9aa4ad, metalness:.1, roughness:.75});
+    }});
+    const box = new THREE.Box3().setFromObject(current);
+    const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3()).length();
+    current.position.sub(c);
+    camera.position.set(s*0.9, s*0.45, s*0.9); controls.target.set(0,0,0);
+    scene.add(current);
+  });
+}
+(function animate(){ requestAnimationFrame(animate); controls.update();
+  renderer.render(scene, camera); })();
+
+const ships = await (await fetch('manifest.json')).json();
+const list = document.getElementById('list');
+for (const s of ships){ const d = document.createElement('div');
+  d.textContent = s; d.onclick = ()=>show(s); list.appendChild(d); }
+if (ships.length) show(ships[0]);
+</script>
+</body>
+</html>
