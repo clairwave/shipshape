@@ -25,9 +25,8 @@ from ship3d.executor.local import ComfyHTTPExecutor  # noqa: E402
 # model key -> (workflow json, node-title input overrides)
 CANDIDATES = {
     "hunyuan2": "hunyuan3d_2.json",
-    "hunyuan2mini": "hunyuan3d_2mini.json",
+    "hunyuan21": "hunyuan3d_2_1.json",
     "trellis": "trellis.json",
-    "sf3d": "sf3d.json",
 }
 
 

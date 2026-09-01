@@ -22,7 +22,8 @@ terrain scene. Up to ~400 on screen at once.
 | **Hunyuan3D-2.1** (shape+paint) | 1.1B + 1.3B | 10–16GB | ~60–120s | GLB, textured | Primary candidate. Strong on elongated hulls, kijai ComfyUI wrapper runs on Windows, paint stage optional |
 | **Hunyuan3D-2mini** | 0.6B | 5–8GB | ~30s | GLB | Batch-cost candidate if quality holds |
 | **TRELLIS** (image-large) | 1.2B | 12–16GB | ~30–60s | GLB/3DGS/NeRF | Primary candidate. Top geometry quality; native install is linux-bound (kaolin/spconv/nvdiffrast) — use ComfyUI-Trellis nodes or run on pods |
-| **SF3D** (Stable Fast 3D) | ~1B | ~7GB | <3s | GLB, UV-unwrapped, PBR | Speed baseline. Built for game assets, lowest cost per ship; risk: blobbier geometry on thin masts/cranes |
+| **Hunyuan3D-2.1** shape | 3.3B | ~10-14GB | TBD | GLB | Largest open shape DiT; bench vs 2.0 for quality-per-second (2.5's 10B is API-only, no weights) |
+| ~~SF3D~~ | ~1B | — | — | — | Dropped per user (HF-gated, and 2.0's quality already approved) |
 | TripoSR | 0.4B | 6GB | ~1s | obj, vertex color | Older LRM, blobs on elongated objects — bench only as floor |
 | TripoSG | 1.5B | 12GB+ | slow | mesh | Quality ceiling but heavier; only if TRELLIS/Hunyuan disappoint |
 | LGM / CRM (gaussian) | — | — | — | splats | Rejected: not GLB/three.js-mesh friendly |

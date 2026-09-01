@@ -1,0 +1,14 @@
+{
+  "1": {"class_type": "LoadImage", "_meta": {"title": "ShipImage"}, "inputs": {
+    "image": "ship.png"}},
+  "2": {"class_type": "Hy3D_2_1SimpleMeshGen", "_meta": {"title": "Sampler"}, "inputs": {
+    "model": "hunyuan_3d_v2.1.safetensors", "image": ["1", 0],
+    "steps": 50, "guidance_scale": 5.0, "octree_resolution": 384}},
+  "3": {"class_type": "Hy3DPostprocessMesh", "_meta": {"title": "Post"}, "inputs": {
+    "trimesh": ["2", 0], "remove_floaters": true,
+    "remove_degenerate_faces": true, "reduce_faces": true,
+    "max_facenum": 40000, "smooth_normals": false}},
+  "4": {"class_type": "Hy3DExportMesh", "_meta": {"title": "Save"}, "inputs": {
+    "trimesh": ["3", 0], "filename_prefix": "3D/ship21", "file_format": "glb",
+    "save_file": true}}
+}
