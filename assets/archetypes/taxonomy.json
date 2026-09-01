@@ -1,0 +1,37 @@
+{
+  "comment": "AIS ship-type code -> archetype folder. Ranges inclusive. Rules with 'dims' are evaluated in order; first match wins. loa/beam in meters from AIS A+B / C+D.",
+  "folders": [
+    "cargo_container", "cargo_bulker", "cargo_general",
+    "tanker_crude", "tanker_product",
+    "passenger_cruise", "passenger_ferry",
+    "fishing", "tug_workboat", "offshore_supply",
+    "sailing_yacht", "pleasure_motor", "highspeed_craft",
+    "patrol_pilot_small", "patrol_military", "dredger_special",
+    "other_generic"
+  ],
+  "code_map": [
+    {"codes": [[30, 30]], "folder": "fishing"},
+    {"codes": [[31, 32], [34, 34], [52, 52], [54, 54]], "folder": "tug_workboat"},
+    {"codes": [[33, 33]], "folder": "dredger_special"},
+    {"codes": [[35, 35], [55, 55]], "folder": "patrol_military"},
+    {"codes": [[36, 36]], "folder": "sailing_yacht"},
+    {"codes": [[37, 37]], "folder": "pleasure_motor"},
+    {"codes": [[20, 29], [40, 49]], "folder": "highspeed_craft"},
+    {"codes": [[50, 51], [53, 53]], "folder": "patrol_pilot_small"},
+    {"codes": [[58, 58]], "folder": "passenger_ferry"},
+    {"codes": [[60, 69]], "rules": [
+      {"dims": {"loa_min": 180}, "folder": "passenger_cruise"},
+      {"folder": "passenger_ferry"}]},
+    {"codes": [[70, 79]], "rules": [
+      {"dims": {"loa_min": 250}, "folder": "cargo_container"},
+      {"dims": {"loa_min": 120, "beam_loa_ratio_max": 0.145}, "folder": "cargo_container"},
+      {"dims": {"loa_min": 120}, "folder": "cargo_bulker"},
+      {"folder": "cargo_general"}]},
+    {"codes": [[80, 89]], "rules": [
+      {"dims": {"loa_min": 180}, "folder": "tanker_crude"},
+      {"folder": "tanker_product"}]},
+    {"codes": [[0, 19], [56, 57], [59, 59], [90, 99]], "folder": "other_generic"}
+  ],
+  "variant_assignment": "hash(mmsi) % n_variants_in_folder",
+  "scaling": "stretch archetype GLB to AIS loa/beam; height scales with beam"
+}
