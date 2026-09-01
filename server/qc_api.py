@@ -58,6 +58,11 @@ def meta_path(mmsi: str) -> Path:
     return BY_MMSI / mmsi / "meta.json"
 
 
+@app.get("/")
+def index():
+    return FileResponse(Path(__file__).parent / "qc_viewer.html")
+
+
 @app.get("/api/health")
 def health():
     return {"ok": True, "models": sum(1 for _ in BY_MMSI.glob("*/meta.json"))}

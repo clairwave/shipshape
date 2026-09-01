@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Fleet model QC</title>
+<style>
+  body { margin:0; display:flex; height:100vh; font:13px system-ui; background:#111; color:#ddd; }
+  #side { width:340px; display:flex; flex-direction:column; border-right:1px solid #333; }
+  #bar { padding:8px; border-bottom:1px solid #333; display:flex; gap:6px; flex-wrap:wrap; }
+  #bar input, #bar select { background:#222; color:#ddd; border:1px solid #444; padding:4px 6px; }
+  #token { width:120px; }
+  #list { flex:1; overflow-y:auto; }
+  .row { padding:8px 12px; cursor:pointer; border-bottom:1px solid #222; }
+  .row:hover { background:#222; } .row.sel { background:#1a3a5c; }
+  .row small { color:#888; display:block; }
+  .st { float:right; font-size:11px; padding:1px 6px; border-radius:8px; }
+  .st.auto{background:#444} .st.approved{background:#1d5c2a}
+  .st.regen_queued{background:#5c4a1d} .st.needs_photo{background:#5c1d1d}
+  .st.community_flagged{background:#5c1d4a}
+  #view { flex:1; position:relative; }
+  #photo { position:absolute; right:10px; bottom:64px; max-width:260px; max-height:200px;
+           border:1px solid #444; background:#000; }
+  #label { position:absolute; left:10px; top:10px; font-size:15px; }
+  #actions { position:absolute; left:0; right:0; bottom:0; padding:10px;
+             background:#181818cc; display:flex; gap:8px; align-items:center; }
+  button { background:#2a4a6a; color:#eee; border:0; padding:7px 14px; cursor:pointer; border-radius:3px; }
+  button:hover { filter:brightness(1.2); }
+  #btnApprove{background:#1d5c2a} #btnRegen{background:#5c4a1d}
+  #btnPhotoReq{background:#5c1d1d} #note{flex:1; background:#222; color:#ddd; border:1px solid #444; padding:6px;}
+  #msg { position:absolute; top:10px; right:10px; color:#8f8; }
+</style>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+"three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="side">
+  <div id="bar">
+    <input id="token" placeholder="QC token" type="password">
+    <select id="filter">
+      <option value="">all</option><option value="auto" selected>auto</option>
+      <option value="approved">approved</option>
+      <option value="regen_queued">regen queued</option>
+      <option value="needs_photo">needs photo</option>
+      <option value="community_flagged">flagged</option>
+    </select>
+    <button id="refresh">↻</button>
+  </div>
+  <div id="list"></div>
+</div>
+<div id="view">
+  <div id="label"></div><img id="photo"><div id="msg"></div>
+  <div id="actions">
+    <button id="btnApprove">Approve</button>
+    <button id="btnRegen">Regen</button>
+    <button id="btnPhotoReq">Needs photo</button>
+    <button id="btnArch">Use archetype</button>
+    <label><input type="file" id="upload" accept="image/*" style="display:none">
+      <button onclick="document.getElementById('upload').click()">Upload photo</button></label>
+    <input id="note" placeholder="note (optional)">
+  </div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+
+const $ = id => document.getElementById(id);
+$('token').value = localStorage.getItem('qcToken') || '';
+$('token').onchange = () => localStorage.setItem('qcToken', $('token').value);
+const hdrs = () => ({'X-QC-Token': $('token').value, 'Content-Type': 'application/json'});
+const say = t => { $('msg').textContent = t; setTimeout(()=>$('msg').textContent='', 4000); };
+
+const view = $('view');
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x1a2633);
+const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 100);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+view.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.autoRotate = true; controls.autoRotateSpeed = 2;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 2.2));
+const sun = new THREE.DirectionalLight(0xffffff, 2.5); sun.position.set(3,5,2); scene.add(sun);
+function resize(){ const w=view.clientWidth,h=view.clientHeight;
+  camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h); }
+addEventListener('resize', resize); resize();
+const ktx2 = new KTX2Loader()
+  .setTranscoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/basis/')
+  .detectSupport(renderer);
+const loader = new GLTFLoader();
+loader.setMeshoptDecoder(MeshoptDecoder); loader.setKTX2Loader(ktx2);
+(function animate(){ requestAnimationFrame(animate); controls.update();
+  renderer.render(scene, camera); })();
+
+let current = null, selected = null;
+function show(m){
+  selected = m;
+  document.querySelectorAll('.row').forEach(r=>r.classList.toggle('sel', r.dataset.mmsi===m.mmsi));
+  $('label').textContent = `${m.mmsi} · ${m.status} · ${(m.final_bytes/1024|0)}KB · ${m.gen_s|0}s`;
+  $('photo').src = `/models/${m.mmsi}/photo.png?${Date.now()}`;
+  loader.load(`/models/${m.mmsi}/model.glb?${Date.now()}`, g => {
+    if (current) scene.remove(current);
+    current = g.scene;
+    current.traverse(o=>{ if(o.isMesh && !o.geometry.getAttribute('normal'))
+      o.geometry.computeVertexNormals(); });
+    const box = new THREE.Box3().setFromObject(current);
+    const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3()).length();
+    current.position.sub(c);
+    camera.position.set(s*0.95, s*0.5, s*0.95); controls.target.set(0,0,0);
+    scene.add(current);
+  });
+}
+
+async function load(){
+  const st = $('filter').value;
+  const r = await fetch(`/api/models?limit=200${st?`&status=${st}`:''}`);
+  const models = await r.json();
+  const list = $('list'); list.innerHTML = '';
+  for (const m of models){
+    const d = document.createElement('div');
+    d.className = 'row'; d.dataset.mmsi = m.mmsi;
+    d.innerHTML = `<span class="st ${m.status}">${m.status}</span><b>${m.mmsi}</b>
+      <small>${m.generated||''} · ${(m.final_bytes/1024|0)}KB${m.votes?` · votes ${m.votes.net??''}`:''}</small>`;
+    d.onclick = ()=>show(m); list.appendChild(d);
+  }
+  if (models.length) show(models[0]);
+}
+$('refresh').onclick = load; $('filter').onchange = load;
+
+async function act(action){
+  if (!selected) return;
+  const r = await fetch('/api/action', {method:'POST', headers:hdrs(),
+    body: JSON.stringify({mmsi:selected.mmsi, action, note:$('note').value})});
+  say(r.ok ? `${action} → ${selected.mmsi}` : `failed (${r.status})`);
+  if (r.ok) load();
+}
+$('btnApprove').onclick = ()=>act('approve');
+$('btnRegen').onclick = ()=>act('regen');
+$('btnPhotoReq').onclick = ()=>act('needs_photo');
+$('btnArch').onclick = ()=>act('use_archetype');
+$('upload').onchange = async e => {
+  if (!selected || !e.target.files.length) return;
+  const fd = new FormData(); fd.append('file', e.target.files[0]);
+  const r = await fetch(`/api/photo/${selected.mmsi}`, {method:'POST',
+    headers:{'X-QC-Token':$('token').value}, body:fd});
+  say(r.ok ? 'photo uploaded, regen queued' : `upload failed (${r.status})`);
+  if (r.ok) load();
+};
+load();
+</script>
+</body>
+</html>
