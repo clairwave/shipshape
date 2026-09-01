@@ -16,3 +16,4 @@ models/
 # secrets
 secrets/
 .env
+ComfyUI3D/
