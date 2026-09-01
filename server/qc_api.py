@@ -48,7 +48,7 @@ init()
 
 
 def auth(token: str | None):
-    if token != TOKEN:
+    if not token or token.strip() != TOKEN:
         raise HTTPException(401, "bad token")
 
 

@@ -74,8 +74,8 @@ import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 
 const $ = id => document.getElementById(id);
 $('token').value = localStorage.getItem('qcToken') || '';
-$('token').onchange = () => localStorage.setItem('qcToken', $('token').value);
-const hdrs = () => ({'X-QC-Token': $('token').value, 'Content-Type': 'application/json'});
+$('token').onchange = () => localStorage.setItem('qcToken', $('token').value.trim());
+const hdrs = () => ({'X-QC-Token': $('token').value.trim(), 'Content-Type': 'application/json'});
 const say = t => { $('msg').textContent = t; setTimeout(()=>$('msg').textContent='', 4000); };
 
 const view = $('view');
