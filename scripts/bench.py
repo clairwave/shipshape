@@ -39,8 +39,17 @@ async def run_model(executor, model: str, workflow: str, img: Path,
                    inputs={"ShipImage.image": "@image"})
     result = await executor.run(spec)
     gen_s = time.time() - t0
-    raw = next(p for p in result.artifacts.values()
-               if str(p).endswith((".glb", ".gltf")))
+    raw = next((p for p in result.artifacts.values()
+                if str(p).endswith((".glb", ".gltf"))), None)
+    if raw is None:
+        # mesh exports don't always surface in /history outputs — take the
+        # newest glb the server wrote since this job started
+        comfy_out = ROOT / "ComfyUI3D" / "output"
+        candidates = [p for p in comfy_out.rglob("*.glb")
+                      if p.stat().st_mtime >= t0]
+        if not candidates:
+            raise RuntimeError("no glb produced")
+        raw = max(candidates, key=lambda p: p.stat().st_mtime)
     raw_path = outdir / f"{img.stem}_raw.glb"
     Path(raw).replace(raw_path)
     stats = postprocess(raw_path, outdir / f"{img.stem}.glb")
