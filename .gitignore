@@ -1,0 +1,18 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# data & outputs — never in git
+out/
+testdata/
+models/
+*.glb
+*.obj
+*.ply
+*.safetensors
+*.ckpt
+
+# secrets
+secrets/
+.env
