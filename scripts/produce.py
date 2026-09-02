@@ -11,6 +11,7 @@ Usage:
 import argparse
 import asyncio
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -39,7 +40,7 @@ async def produce_one(executor, img: Path, outdir: Path) -> dict:
     raw = next((p for p in result.artifacts.values()
                 if str(p).endswith(".glb")), None)
     if raw is None:
-        cands = [p for p in (ROOT / "ComfyUI3D" / "output").rglob("*.glb")
+        cands = [p for p in Path(os.environ.get("COMFY_OUTPUT_DIR", ROOT / "ComfyUI3D" / "output")).rglob("*.glb")
                  if p.stat().st_mtime >= t0]
         if not cands:
             raise RuntimeError("no glb produced")
