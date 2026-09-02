@@ -18,3 +18,4 @@ secrets/
 .env
 ComfyUI3D/
 viewer/manifest.json
+viewer/_mosaic_list.js

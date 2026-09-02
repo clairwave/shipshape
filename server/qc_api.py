@@ -217,6 +217,62 @@ def archetype_file(folder: str, fname: str):
     return FileResponse(p)
 
 
+# ── public fleet portal (read-only + votes): /fleet/* — no token needed;
+# nginx exposes only this prefix publicly ──
+
+_statics_cache: dict = {}
+
+
+def statics():
+    if not _statics_cache:
+        snap = QC_DIR / "statics_snapshot.jsonl"
+        if snap.exists():
+            for line in snap.read_text().splitlines():
+                try:
+                    v = json.loads(line)
+                    _statics_cache[str(v["mmsi"])] = {
+                        "mmsi": str(v["mmsi"]), "name": v.get("name") or "",
+                        "type": v.get("type"), "length": v.get("length"),
+                        "beam": v.get("beam")}
+                except Exception:
+                    pass
+    return _statics_cache
+
+
+@app.get("/fleet")
+@app.get("/fleet/")
+def fleet_page():
+    return FileResponse(Path(__file__).parent / "fleet.html")
+
+
+@app.get("/fleet/api/search")
+def fleet_search(q: str, limit: int = 25):
+    q = q.strip()
+    if len(q) < 3:
+        return []
+    ql = q.lower()
+    out = []
+    for v in statics().values():
+        if (q.isdigit() and v["mmsi"].startswith(q)) \
+                or (not q.isdigit() and ql in v["name"].lower()):
+            has = (BY_MMSI / v["mmsi"] / "model.glb").exists()
+            out.append({**v, "has_model": has})
+            if len(out) >= limit * 3:
+                break
+    out.sort(key=lambda r: not r["has_model"])
+    return out[:limit]
+
+
+@app.post("/fleet/api/vote")
+def fleet_vote(body: dict):
+    return vote(body)
+
+
+@app.get("/fleet/models/{mmsi}/{fname}")
+def fleet_model_file(mmsi: str, fname: str):
+    return model_file(mmsi, fname)
+
+
 @app.get("/models/{mmsi}/{fname}")
 def model_file(mmsi: str, fname: str):
     if fname not in ("model.glb", "photo.png", "meta.json"):

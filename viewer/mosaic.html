@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>mosaic</title>
+<style>body{margin:0;background:#0d1420}#big{display:block}</style>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+"three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script src="_mosaic_list.js"></script>
+</head>
+<body>
+<canvas id="big" width="1560" height="1040"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+
+const TW = 260, TH = 260, COLS = 6;
+const big = document.getElementById('big').getContext('2d');
+big.fillStyle = '#0d1420'; big.fillRect(0, 0, 1560, 1040);
+const renderer = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+renderer.setSize(TW*2, TH*2);
+const ktx2 = new KTX2Loader()
+  .setTranscoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/basis/')
+  .detectSupport(renderer);
+const loader = new GLTFLoader();
+loader.setMeshoptDecoder(MeshoptDecoder); loader.setKTX2Loader(ktx2);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0d1420);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 2.4));
+const sun = new THREE.DirectionalLight(0xffffff, 2.6); sun.position.set(3,5,2);
+scene.add(sun);
+const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 100);
+
+function loadOne(url){ return new Promise(res => loader.load(url, res, undefined, ()=>res(null))); }
+
+let i = 0;
+for (const url of GLBS){
+  const g = await loadOne(url);
+  if (g){
+    const obj = g.scene;
+    obj.traverse(o=>{ if(o.isMesh && !o.geometry.getAttribute('normal'))
+      o.geometry.computeVertexNormals(); });
+    const box = new THREE.Box3().setFromObject(obj);
+    const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3()).length();
+    obj.position.sub(c);
+    camera.position.set(s*0.62, s*0.30, s*0.62); camera.lookAt(0,0,0);
+    scene.add(obj);
+    renderer.render(scene, camera);
+    big.drawImage(renderer.domElement, (i%COLS)*TW, Math.floor(i/COLS)*TH, TW, TH);
+    scene.remove(obj);
+  }
+  i++;
+}
+document.title = 'MOSAIC_DONE';
+</script>
+</body>
+</html>

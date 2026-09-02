@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shipshape — open fleet models</title>
+<style>
+  body { margin:0; display:flex; height:100vh; font:14px system-ui; background:#0d1420; color:#dde5ee; }
+  #side { width:340px; display:flex; flex-direction:column; border-right:1px solid #23364d; }
+  #head { padding:14px; border-bottom:1px solid #23364d; }
+  #head h1 { margin:0 0 2px; font-size:18px; } #head p { margin:0 0 10px; color:#7f93aa; font-size:12px; }
+  #q { width:100%; box-sizing:border-box; background:#16233a; color:#dde5ee;
+       border:1px solid #2c4363; padding:9px 10px; border-radius:4px; }
+  #list { flex:1; overflow-y:auto; }
+  .row { padding:9px 14px; cursor:pointer; border-bottom:1px solid #16233a; }
+  .row:hover { background:#16233a; } .row.sel { background:#1a3a5c; }
+  .row small { color:#7f93aa; display:block; }
+  .badge { float:right; font-size:11px; padding:1px 7px; border-radius:8px; background:#1d5c2a; }
+  .badge.no { background:#333f52; }
+  #view { flex:1; position:relative; }
+  #label { position:absolute; left:12px; top:10px; font-size:15px; }
+  #photo { position:absolute; right:10px; bottom:64px; max-width:240px; max-height:180px;
+           border:1px solid #2c4363; background:#000; }
+  #bar { position:absolute; left:0; right:0; bottom:0; padding:10px 12px;
+         background:#101a2acc; display:flex; gap:10px; align-items:center; }
+  a.btn, button { background:#2a4a6a; color:#eee; border:0; padding:8px 14px;
+        cursor:pointer; border-radius:4px; text-decoration:none; font:inherit; }
+  #up:hover { background:#1d5c2a; } #down:hover { background:#5c1d1d; }
+  #attr { color:#7f93aa; font-size:11px; flex:1; }
+  #foot { padding:10px 14px; font-size:11px; color:#7f93aa; border-top:1px solid #23364d; }
+  #foot a { color:#7fb2e5; }
+</style>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+"three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="side">
+  <div id="head">
+    <h1>shipshape</h1>
+    <p>open 3D models of the world fleet, keyed by MMSI</p>
+    <input id="q" placeholder="search MMSI or vessel name…" autofocus>
+  </div>
+  <div id="list"></div>
+  <div id="foot">
+    Models generated from Wikimedia Commons photographs — CC-BY-SA, attribution
+    in each model's metadata. Pipeline:
+    <a href="https://github.com/hvithest/shipshape" target="_blank" rel="noopener">github.com/hvithest/shipshape</a>
+  </div>
+</div>
+<div id="view">
+  <div id="label">search for a vessel</div><img id="photo" style="display:none">
+  <div id="bar">
+    <a class="btn" id="dl" download style="display:none">Download GLB</a>
+    <button id="up" title="looks right">👍</button>
+    <button id="down" title="looks wrong">👎</button>
+    <span id="attr"></span>
+  </div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+
+const $ = id => document.getElementById(id);
+const view = $('view');
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x101a2a);
+const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 100);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+view.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.autoRotate = true; controls.autoRotateSpeed = 1.6;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 2.2));
+const sun = new THREE.DirectionalLight(0xffffff, 2.5); sun.position.set(3,5,2); scene.add(sun);
+function resize(){ const w=view.clientWidth,h=view.clientHeight;
+  camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h); }
+addEventListener('resize', resize); resize();
+const ktx2 = new KTX2Loader()
+  .setTranscoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/basis/')
+  .detectSupport(renderer);
+const loader = new GLTFLoader();
+loader.setMeshoptDecoder(MeshoptDecoder); loader.setKTX2Loader(ktx2);
+(function animate(){ requestAnimationFrame(animate); controls.update();
+  renderer.render(scene, camera); })();
+
+let current = null, selected = null;
+const session = (localStorage.ssid ||= Math.random().toString(36).slice(2));
+
+function show(v){
+  selected = v;
+  document.querySelectorAll('.row').forEach(r=>r.classList.toggle('sel', r.dataset.mmsi===v.mmsi));
+  $('label').textContent = `${v.name || 'MMSI ' + v.mmsi} · ${v.mmsi}` +
+    (v.length ? ` · ${v.length}m` : '');
+  if (!v.has_model){
+    if (current) scene.remove(current); current = null;
+    $('dl').style.display='none'; $('photo').style.display='none';
+    $('attr').textContent = 'no model yet for this vessel';
+    return;
+  }
+  $('photo').src = `models/${v.mmsi}/photo.png`; $('photo').style.display='';
+  $('dl').href = `models/${v.mmsi}/model.glb`;
+  $('dl').download = `${v.mmsi}.glb`; $('dl').style.display='';
+  fetch(`models/${v.mmsi}/meta.json`).then(r=>r.json()).then(m=>{
+    $('attr').textContent = `generated ${m.generated || ''} · ${(m.final_bytes/1024|0)}KB · ${m.final_tris} tris`;
+  }).catch(()=>{});
+  loader.load(`models/${v.mmsi}/model.glb`, g => {
+    if (current) scene.remove(current);
+    current = g.scene;
+    current.traverse(o=>{ if(o.isMesh && !o.geometry.getAttribute('normal'))
+      o.geometry.computeVertexNormals(); });
+    const box = new THREE.Box3().setFromObject(current);
+    const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3()).length();
+    current.position.sub(c);
+    camera.position.set(s*0.95, s*0.5, s*0.95); controls.target.set(0,0,0);
+    scene.add(current);
+  });
+}
+
+let t = null;
+$('q').oninput = () => { clearTimeout(t); t = setTimeout(search, 300); };
+async function search(){
+  const q = $('q').value.trim();
+  if (q.length < 3) return;
+  const rs = await (await fetch(`api/search?q=${encodeURIComponent(q)}`)).json();
+  const list = $('list'); list.innerHTML = '';
+  for (const v of rs){
+    const d = document.createElement('div');
+    d.className = 'row'; d.dataset.mmsi = v.mmsi;
+    d.innerHTML = `<span class="badge ${v.has_model?'':'no'}">${v.has_model?'3D':'—'}</span>
+      <b>${v.name || 'MMSI ' + v.mmsi}</b><small>${v.mmsi}${v.length?` · ${v.length}m`:''}</small>`;
+    d.onclick = ()=>show(v); list.appendChild(d);
+  }
+  if (rs.length) show(rs[0]);
+  else { $('label').textContent = 'no vessels match'; }
+}
+
+async function vote(n){
+  if (!selected || !selected.has_model) return;
+  await fetch('api/vote', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({mmsi:selected.mmsi, vote:n, session})});
+  $('attr').textContent = 'thanks — vote recorded';
+}
+$('up').onclick = ()=>vote(1); $('down').onclick = ()=>vote(-1);
+</script>
+</body>
+</html>

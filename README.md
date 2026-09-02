@@ -8,6 +8,8 @@ where up to ~400 ships render at once in three.js. Every model is a
 scene-ready GLB: **≤10k triangles, ~150KB, KTX2-compressed texture,
 meshopt-compressed geometry** — generated once, served forever.
 
+![24 generated ship models across vessel classes](docs/assets/fleet_mosaic.png)
+
 ```
 photo ─▶ rembg cutout ─▶ Hunyuan3D-2.1 shape (3.3B) ─▶ multiview paint
       ─▶ texture bake ─▶ gltfpack (simplify + quantize + KTX2) ─▶ model.glb
