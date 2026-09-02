@@ -132,7 +132,16 @@ async def main():
     args = ap.parse_args()
     executor = ComfyHTTPExecutor(COMFYUI_URL, out_dir=str(ROOT / "out"))
     while True:
-        pending = api("GET", "/api/tasks?status=pending&limit=10", args.api)
+        try:
+            pending = api("GET", "/api/tasks?status=pending&limit=10",
+                          args.api)
+        except requests.RequestException as e:
+            # api restarting or briefly unreachable — never die over it
+            print(f"[poll error] {e}", flush=True)
+            if args.once:
+                break
+            time.sleep(args.idle)
+            continue
         pending = [t for t in pending
                    if t["action"] in ("generate", "regen")]
         if not pending:
@@ -154,9 +163,12 @@ async def main():
                 json={"ok": True, "note": note})
             print(f"[task {task['id']}] done", flush=True)
         except Exception as e:
-            api("POST", f"/api/tasks/{task['id']}/complete", args.api,
-                json={"ok": False, "note": str(e)})
             print(f"[task {task['id']}] FAILED: {e}", flush=True)
+            try:
+                api("POST", f"/api/tasks/{task['id']}/complete", args.api,
+                    json={"ok": False, "note": str(e)})
+            except requests.RequestException:
+                pass  # api will re-serve the stuck 'running' task via ops
         if args.once:
             break
 
