@@ -293,6 +293,26 @@ def staged_decision(body: dict, x_qc_token: str | None = Header(None)):
     return {"approved": approved, "rejected": rejected}
 
 
+@app.post("/api/align")
+def align(body: dict, x_qc_token: str | None = Header(None)):
+    """Ops orientation fix: rotate model about +Y by yaw_deg (convention:
+    bow = +Z, up = +Y). Composes with any existing alignment."""
+    auth(x_qc_token)
+    from glb_align import apply_yaw
+    mmsi = str(body["mmsi"])
+    glb = meta_path(mmsi).parent / "model.glb"
+    if not glb.exists():
+        raise HTTPException(404, "no model")
+    total = apply_yaw(glb, float(body.get("yaw_deg", 0)))
+    mp = meta_path(mmsi)
+    if mp.exists():
+        m = json.loads(mp.read_text())
+        m["align_yaw"] = total
+        m["aligned"] = True
+        mp.write_text(json.dumps(m, indent=1))
+    return {"ok": True, "align_yaw": total}
+
+
 @app.post("/api/staged/photo/{mmsi}")
 async def staged_photo(mmsi: str, file: UploadFile,
                        x_qc_token: str | None = Header(None)):

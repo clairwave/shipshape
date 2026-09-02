@@ -74,6 +74,10 @@
     <button id="btnRegen">Regen</button>
     <button id="btnPhotoReq">Needs photo</button>
     <button id="btnArch">Use archetype</button>
+    <button id="rotL" title="rotate 90° left">⟲90</button>
+    <button id="rot180" title="flip bow/stern">180</button>
+    <button id="rotR" title="rotate 90° right">⟳90</button>
+    <button id="saveAlign" title="bake orientation into the GLB (bow=+Z)" style="display:none">Save align</button>
     <label><input type="file" id="upload" accept="image/*" style="display:none">
       <button onclick="document.getElementById('upload').click()">Upload photo</button></label>
     <input type="file" id="repFile" accept="image/*" style="display:none">
@@ -115,8 +119,27 @@ loader.setMeshoptDecoder(MeshoptDecoder); loader.setKTX2Loader(ktx2);
 (function animate(){ requestAnimationFrame(animate); controls.update();
   renderer.render(scene, camera); })();
 
-let current = null, selected = null;
+let current = null, selected = null, pendingYaw = 0, bowArrow = null;
+
+function setPending(deg){
+  pendingYaw = (pendingYaw + deg) % 360;
+  if (current) current.rotation.y = THREE.MathUtils.degToRad(pendingYaw);
+  $('saveAlign').style.display = pendingYaw ? '' : 'none';
+  $('saveAlign').textContent = `Save align (${pendingYaw}°)`;
+}
+$('rotL').onclick = ()=>setPending(90);
+$('rotR').onclick = ()=>setPending(-90);
+$('rot180').onclick = ()=>setPending(180);
+$('saveAlign').onclick = async ()=>{
+  if (!selected || !pendingYaw) return;
+  const r = await fetch('api/align', {method:'POST', headers:hdrs(),
+    body: JSON.stringify({mmsi:selected.mmsi, yaw_deg:pendingYaw})});
+  say(r.ok ? `alignment saved (${pendingYaw}°)` : `failed (${r.status})`);
+  if (r.ok) show(selected);
+};
+
 function show(m){
+  pendingYaw = 0; $('saveAlign').style.display = 'none';
   selected = m;
   document.querySelectorAll('.row').forEach(r=>r.classList.toggle('sel', r.dataset.mmsi===m.mmsi));
   $('label').textContent = `${m.mmsi} · ${m.status} · ${(m.final_bytes/1024|0)}KB · ${m.gen_s|0}s`;
@@ -131,6 +154,10 @@ function show(m){
     current.position.sub(c);
     camera.position.set(s*0.95, s*0.5, s*0.95); controls.target.set(0,0,0);
     scene.add(current);
+    if (bowArrow) scene.remove(bowArrow);
+    bowArrow = new THREE.ArrowHelper(new THREE.Vector3(0,0,1),
+      new THREE.Vector3(0,0,0), s*0.65, 0x33ff88, s*0.09, s*0.045);
+    scene.add(bowArrow);  // green arrow = bow (+Z) convention
   });
 }
 

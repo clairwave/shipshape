@@ -82,6 +82,16 @@ python scripts/produce.py testdata/my_ship_photo.png
 
 Configuration is environment-driven — see `.env.example`.
 
+## Orientation convention
+
+Every model is aligned **bow = +Z, up = +Y** (the glTF "front" convention —
+`Object3D.lookAt`-ready in three.js): load a GLB, set its rotation from the
+vessel's AIS heading, done. The pipeline auto-rotates the hull's long axis
+onto Z at postprocess (a root wrapper node — geometry untouched); the
+remaining bow-vs-stern ambiguity is fixed by ops in the QC manager (rotate
+buttons + green bow arrow, baked into the file via `/api/align`).
+`meta.json` carries `align_yaw`/`aligned` for provenance.
+
 ## Format choices, briefly
 
 GLB (binary glTF) is the container; inside it we use **meshopt**

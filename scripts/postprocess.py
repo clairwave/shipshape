@@ -51,11 +51,17 @@ def postprocess(raw: Path, final: Path, ratio: float = 0.25) -> dict:
          "-tl", "512",                # texture size cap
          "-cc",                       # meshopt compression
          ], check=True, capture_output=True, text=True)
+    try:
+        from glb_align import auto_align
+        auto_yaw = auto_align(final)
+    except Exception:
+        auto_yaw = None
     return {
         "raw_bytes": raw.stat().st_size,
         "final_bytes": final.stat().st_size,
         "raw_tris": tri_count(raw),
         "final_tris": tri_count(final),
+        "auto_yaw": auto_yaw,
     }
 
 
