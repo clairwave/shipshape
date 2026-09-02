@@ -8,6 +8,7 @@ Requires gltfpack on PATH (npm i -g gltfpack) with KTX2 support (--tc).
 """
 import argparse
 import json
+import os
 import shutil
 import struct
 import subprocess
@@ -16,9 +17,9 @@ from pathlib import Path
 
 # native build (BasisU/KTX2 support) preferred; npm build lacks -tc
 _NATIVE = Path(__file__).resolve().parents[1] / "tools" / "gltfpack.exe"
-GLTFPACK = str(_NATIVE) if _NATIVE.exists() else (
-    shutil.which("gltfpack") or shutil.which("gltfpack.cmd")
-    or r"C:\Users\jn689396\AppData\Roaming\npm\gltfpack.cmd")
+GLTFPACK = os.environ.get("GLTFPACK") or (
+    str(_NATIVE) if _NATIVE.exists() else
+    shutil.which("gltfpack") or shutil.which("gltfpack.cmd") or "gltfpack")
 
 
 def tri_count(glb: Path) -> int:

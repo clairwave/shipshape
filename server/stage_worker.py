@@ -11,6 +11,7 @@ Run: .venv/bin/python stage_worker.py --limit 200 [--min-days 7] [--mmsi ...]
 import argparse
 import io
 import json
+import os
 import time
 from pathlib import Path
 
@@ -18,7 +19,8 @@ import requests
 from PIL import Image
 from rembg import remove
 
-ROOT = Path("/data/disks/media/clairwave-models/ships")
+ROOT = Path(os.environ.get("SHIP3D_STORE",
+                           "/data/disks/media/clairwave-models/ships"))
 BY_MMSI = ROOT / "by_mmsi"
 QC_DIR = ROOT / "qc"
 MISSES = QC_DIR / "stage_misses.jsonl"

@@ -8,6 +8,7 @@ Run: uvicorn qc_api:app --host 0.0.0.0 --port 8877
 Auth: X-QC-Token header on mutating/ops endpoints (token file next to app).
 """
 import json
+import os
 import sqlite3
 import time
 from pathlib import Path
@@ -15,7 +16,8 @@ from pathlib import Path
 from fastapi import FastAPI, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
-ROOT = Path("/data/disks/media/clairwave-models/ships")
+ROOT = Path(os.environ.get("SHIP3D_STORE",
+                           "/data/disks/media/clairwave-models/ships"))
 BY_MMSI = ROOT / "by_mmsi"
 QC_DIR = ROOT / "qc"
 DB = QC_DIR / "queue.db"

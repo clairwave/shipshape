@@ -1,0 +1,41 @@
+# ship3d generation worker: ComfyUI + Hunyuan3D wrapper + fleet_worker.
+# One container per GPU. EXPERIMENTAL — the reference deployment runs these
+# components natively; treat this image as a starting point.
+FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 python3.12-venv git curl openssh-client ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+RUN git clone https://github.com/comfyanonymous/ComfyUI && \
+    python3.12 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir torch==2.7.1 torchvision torchaudio==2.7.1 \
+        --index-url https://download.pytorch.org/whl/cu128 && \
+    /opt/venv/bin/pip install --no-cache-dir -r ComfyUI/requirements.txt
+
+RUN git clone https://github.com/kijai/ComfyUI-Hunyuan3DWrapper \
+        ComfyUI/custom_nodes/ComfyUI-Hunyuan3DWrapper && \
+    /opt/venv/bin/pip install --no-cache-dir \
+        -r ComfyUI/custom_nodes/ComfyUI-Hunyuan3DWrapper/requirements.txt \
+        omegaconf timm pymeshlab pytorch_lightning opencv-python-headless \
+        rembg onnxruntime requests
+
+# rasterizer wheel for the texture stage (cp312/torch2.7/cu128)
+RUN /opt/venv/bin/pip install --no-cache-dir \
+    "ComfyUI/custom_nodes/ComfyUI-Hunyuan3DWrapper/wheels/custom_rasterizer-0.1.0+torch270.cuda128-cp312-cp312-win_amd64.whl" \
+    || echo "NOTE: install a linux custom_rasterizer wheel matching your torch (see wrapper README)"
+
+# gltfpack native build (BasisU support)
+RUN curl -sL https://github.com/zeux/meshoptimizer/releases/download/v1.2/gltfpack-ubuntu.zip \
+    -o /tmp/gp.zip && cd /usr/local/bin && \
+    apt-get update && apt-get install -y unzip && unzip -o /tmp/gp.zip && \
+    chmod +x gltfpack && rm /tmp/gp.zip
+
+COPY . /opt/ship3d
+# Weights are NOT baked in (~16GB): mount or download into
+# /opt/ComfyUI/models/diffusion_models — see README "Weights".
+
+ENV COMFYUI_URL=http://127.0.0.1:8189
+CMD /opt/venv/bin/python /opt/ComfyUI/main.py --port 8189 --listen 127.0.0.1 & \
+    sleep 30 && /opt/venv/bin/python /opt/ship3d/scripts/fleet_worker.py

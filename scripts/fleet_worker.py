@@ -11,6 +11,7 @@ Token: secrets/qc_token
 import argparse
 import asyncio
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -30,8 +31,9 @@ from ship3d.config import COMFYUI_URL  # noqa: E402
 from ship3d.executor.local import ComfyHTTPExecutor  # noqa: E402
 
 TOKEN = (ROOT / "secrets" / "qc_token").read_text().strip()
-REMOTE = "jon@cw1"
-STORE = "/data/disks/media/clairwave-models/ships/by_mmsi"
+REMOTE = os.environ.get("SHIP3D_SSH_REMOTE", "jon@cw1")
+STORE = os.environ.get(
+    "SHIP3D_STORE", "/data/disks/media/clairwave-models/ships") + "/by_mmsi"
 PIPELINE_TAG = "ship_production.json"
 
 

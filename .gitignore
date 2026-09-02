@@ -17,3 +17,4 @@ models/
 secrets/
 .env
 ComfyUI3D/
+viewer/manifest.json

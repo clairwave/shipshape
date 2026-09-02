@@ -7,6 +7,7 @@ Run: python scripts/gen_archetypes.py
 """
 import asyncio
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -22,7 +23,9 @@ from ship3d.executor.local import ComfyHTTPExecutor  # noqa: E402
 
 SRC = ROOT / "assets" / "archetypes"
 OUT = ROOT / "out" / "archetypes"
-REMOTE_DIR = "/data/disks/media/clairwave-models/ships/archetypes"
+REMOTE = os.environ.get("SHIP3D_SSH_REMOTE", "jon@cw1")
+REMOTE_DIR = os.environ.get(
+    "SHIP3D_STORE", "/data/disks/media/clairwave-models/ships") + "/archetypes"
 
 
 async def main():
@@ -48,7 +51,7 @@ async def main():
             done += 1
         except Exception as e:
             print(f"[fail] {folder}/{photo.stem}: {e}", flush=True)
-    subprocess.run(["ssh", "-o", "BatchMode=yes", "jon@cw1",
+    subprocess.run(["ssh", "-o", "BatchMode=yes", REMOTE,
                     f"mkdir -p {REMOTE_DIR}"], capture_output=True)
     for d in sorted(OUT.iterdir()):
         if not d.is_dir():
@@ -56,13 +59,13 @@ async def main():
         glbs = [str(p) for p in d.glob("*.glb") if not p.stem.endswith("_raw")]
         if not glbs:
             continue
-        subprocess.run(["ssh", "-o", "BatchMode=yes", "jon@cw1",
+        subprocess.run(["ssh", "-o", "BatchMode=yes", REMOTE,
                         f"mkdir -p {REMOTE_DIR}/{d.name}"],
                        capture_output=True)
         subprocess.run(["scp", "-o", "BatchMode=yes", *glbs,
-                        f"jon@cw1:{REMOTE_DIR}/{d.name}/"],
+                        f"{REMOTE}:{REMOTE_DIR}/{d.name}/"],
                        check=True, capture_output=True)
-    subprocess.run(["ssh", "-o", "BatchMode=yes", "jon@cw1",
+    subprocess.run(["ssh", "-o", "BatchMode=yes", REMOTE,
                     f"chmod -R a+rX {REMOTE_DIR}"], capture_output=True)
     print(f"=== ARCHETYPES DONE: {done}/{len(photos)} synced to cw1 ===",
           flush=True)

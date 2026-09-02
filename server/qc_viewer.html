@@ -103,8 +103,8 @@ function show(m){
   selected = m;
   document.querySelectorAll('.row').forEach(r=>r.classList.toggle('sel', r.dataset.mmsi===m.mmsi));
   $('label').textContent = `${m.mmsi} · ${m.status} · ${(m.final_bytes/1024|0)}KB · ${m.gen_s|0}s`;
-  $('photo').src = `/models/${m.mmsi}/photo.png?${Date.now()}`;
-  loader.load(`/models/${m.mmsi}/model.glb?${Date.now()}`, g => {
+  $('photo').src = `models/${m.mmsi}/photo.png?${Date.now()}`;
+  loader.load(`models/${m.mmsi}/model.glb?${Date.now()}`, g => {
     if (current) scene.remove(current);
     current = g.scene;
     current.traverse(o=>{ if(o.isMesh && !o.geometry.getAttribute('normal'))
@@ -123,7 +123,7 @@ function showArch(folder, variant){
     r.classList.toggle('sel', r.dataset.mmsi===folder+'/'+variant));
   $('label').textContent = `${folder} / ${variant}`;
   $('photo').removeAttribute('src'); $('photo').style.display='none';
-  loader.load(`/archetypes/${folder}/${variant}`, g => {
+  loader.load(`archetypes/${folder}/${variant}`, g => {
     if (current) scene.remove(current);
     current = g.scene;
     current.traverse(o=>{ if(o.isMesh && !o.geometry.getAttribute('normal'))
@@ -141,7 +141,7 @@ async function load(){
   $('photo').style.display='';
   if ($('mode').value === 'archetypes'){
     $('actions').style.visibility = 'hidden';
-    const folders = await (await fetch('/api/archetypes')).json();
+    const folders = await (await fetch('api/archetypes')).json();
     let first = null;
     for (const f of folders){
       f.variants.forEach((v, i) => {
@@ -157,7 +157,7 @@ async function load(){
   }
   $('actions').style.visibility = '';
   const st = $('filter').value;
-  const r = await fetch(`/api/models?limit=200${st?`&status=${st}`:''}`);
+  const r = await fetch(`api/models?limit=200${st?`&status=${st}`:''}`);
   const models = await r.json();
   for (const m of models){
     const d = document.createElement('div');
@@ -172,7 +172,7 @@ $('refresh').onclick = load; $('filter').onchange = load; $('mode').onchange = l
 
 async function act(action){
   if (!selected) return;
-  const r = await fetch('/api/action', {method:'POST', headers:hdrs(),
+  const r = await fetch('api/action', {method:'POST', headers:hdrs(),
     body: JSON.stringify({mmsi:selected.mmsi, action, note:$('note').value})});
   say(r.ok ? `${action} → ${selected.mmsi}` : `failed (${r.status})`);
   if (r.ok) load();
@@ -184,7 +184,7 @@ $('btnArch').onclick = ()=>act('use_archetype');
 $('upload').onchange = async e => {
   if (!selected || !e.target.files.length) return;
   const fd = new FormData(); fd.append('file', e.target.files[0]);
-  const r = await fetch(`/api/photo/${selected.mmsi}`, {method:'POST',
+  const r = await fetch(`api/photo/${selected.mmsi}`, {method:'POST',
     headers:{'X-QC-Token':$('token').value}, body:fd});
   say(r.ok ? 'photo uploaded, regen queued' : `upload failed (${r.status})`);
   if (r.ok) load();
