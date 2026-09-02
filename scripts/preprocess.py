@@ -9,9 +9,15 @@ from pathlib import Path
 from PIL import Image
 from rembg import remove
 
+# community-contributed photos flow through here — cap decode size so an
+# oversized upload can't exhaust worker memory
+Image.MAX_IMAGE_PIXELS = 40_000_000
+
 
 def preprocess(src: Path, outdir: Path, size: int = 1024) -> Path:
-    img = remove(Image.open(src)).convert("RGBA")
+    raw = Image.open(src)
+    raw.thumbnail((2048, 2048))
+    img = remove(raw).convert("RGBA")
     bbox = img.getbbox()
     if bbox:
         img = img.crop(bbox)

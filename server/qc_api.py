@@ -428,6 +428,35 @@ async def task_result(task_id: int, model: UploadFile, photo: UploadFile,
     return {"ok": True}
 
 
+@app.post("/fleet/api/photo/{mmsi}")
+async def fleet_photo(mmsi: str, file: UploadFile, request: Request):
+    """Community photo contribution for an UNGENERATED vessel. Goes to the
+    ops review queue (staged photos) — never straight to generation."""
+    d = meta_path(mmsi).parent
+    if (d / "model.glb").exists():
+        raise HTTPException(409, "model exists — vote on it instead")
+    ip = request.headers.get("x-real-ip") or (request.client.host
+                                              if request.client else "?")
+    with db() as c:
+        c.execute("CREATE TABLE IF NOT EXISTS public_req(ip TEXT, ts REAL)")
+        n = c.execute("SELECT count(*) n FROM public_req WHERE ip=? AND ts>?",
+                      (ip, time.time() - 86400)).fetchone()["n"]
+        if n >= 5:
+            raise HTTPException(429, "daily contribution limit reached")
+        c.execute("INSERT INTO public_req VALUES(?,?)", (ip, time.time()))
+    data = await file.read()
+    if len(data) > 15_000_000:
+        raise HTTPException(413, "photo too large (15MB max)")
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "photo.png").write_bytes(data)
+    sp = d / "stage.json"
+    s = json.loads(sp.read_text()) if sp.exists() else {"mmsi": mmsi}
+    s.update({"review": "pending", "photo_source": "community-upload",
+              "photo_page": None, "uploader_ip": ip, "staged": time.time()})
+    sp.write_text(json.dumps(s, indent=1))
+    return {"ok": True, "review": "pending"}
+
+
 @app.post("/fleet/api/vote")
 def fleet_vote(body: dict):
     return vote(body)

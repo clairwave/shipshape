@@ -102,6 +102,8 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.autoRotate = true; controls.autoRotateSpeed = 2;
 scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 2.2));
 const sun = new THREE.DirectionalLight(0xffffff, 2.5); sun.position.set(3,5,2); scene.add(sun);
+const fill = new THREE.DirectionalLight(0xbcd4ff, 1.1); fill.position.set(-4,2,-3); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xfff2dd, 0.8); rim.position.set(0,-3,-5); scene.add(rim);
 function resize(){ const w=view.clientWidth,h=view.clientHeight;
   camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h); }
 addEventListener('resize', resize); resize();

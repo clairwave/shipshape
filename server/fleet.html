@@ -55,6 +55,8 @@
     <a class="btn" id="dl" download style="display:none">Download GLB</a>
     <button id="up" title="looks right">👍</button>
     <button id="down" title="looks wrong">👎</button>
+    <button id="contrib" style="display:none">Contribute a photo</button>
+    <input type="file" id="contribFile" accept="image/*" style="display:none">
     <span id="attr"></span>
   </div>
 </div>
@@ -75,6 +77,8 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.autoRotate = true; controls.autoRotateSpeed = 1.6;
 scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 2.2));
 const sun = new THREE.DirectionalLight(0xffffff, 2.5); sun.position.set(3,5,2); scene.add(sun);
+const fill = new THREE.DirectionalLight(0xbcd4ff, 1.1); fill.position.set(-4,2,-3); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xfff2dd, 0.8); rim.position.set(0,-3,-5); scene.add(rim);
 function resize(){ const w=view.clientWidth,h=view.clientHeight;
   camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h); }
 addEventListener('resize', resize); resize();
@@ -94,6 +98,7 @@ function show(v){
   document.querySelectorAll('.row').forEach(r=>r.classList.toggle('sel', r.dataset.mmsi===v.mmsi));
   $('label').textContent = `${v.name || 'MMSI ' + v.mmsi} · ${v.mmsi}` +
     (v.length ? ` · ${v.length}m` : '');
+  $('contrib').style.display = v.has_model ? 'none' : '';
   if (!v.has_model){
     if (current) scene.remove(current); current = null;
     $('dl').style.display='none'; $('photo').style.display='none';
@@ -149,6 +154,18 @@ async function vote(n){
   $('attr').textContent = 'thanks — vote recorded';
 }
 $('up').onclick = ()=>vote(1); $('down').onclick = ()=>vote(-1);
+
+$('contrib').onclick = ()=>{ if (selected) $('contribFile').click(); };
+$('contribFile').onchange = async e => {
+  if (!selected || !e.target.files.length) return;
+  const fd = new FormData(); fd.append('file', e.target.files[0]);
+  const r = await fetch(`api/photo/${selected.mmsi}`, {method:'POST', body:fd});
+  const j = await r.json().catch(()=>({}));
+  $('attr').textContent = r.ok
+    ? 'photo submitted — it will be reviewed before a model is generated. thank you!'
+    : (j.detail || `upload failed (${r.status})`);
+  e.target.value = '';
+};
 </script>
 </body>
 </html>
