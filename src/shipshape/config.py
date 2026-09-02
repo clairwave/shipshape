@@ -1,4 +1,4 @@
-"""ship3d config: repo root + comfy endpoint."""
+"""shipshape config: repo root + comfy endpoint."""
 import os
 from pathlib import Path
 

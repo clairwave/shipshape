@@ -16,7 +16,7 @@ from typing import Any
 import httpx
 import websockets
 
-from ship3d.config import REPO_ROOT
+from shipshape.config import REPO_ROOT
 
 WORKFLOWS_DIR = REPO_ROOT / "workflows"
 

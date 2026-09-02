@@ -1,4 +1,4 @@
-# ship3d generation worker: ComfyUI + Hunyuan3D wrapper + fleet_worker.
+# shipshape generation worker: ComfyUI + Hunyuan3D wrapper + fleet_worker.
 # One container per GPU. EXPERIMENTAL — the reference deployment runs these
 # components natively; treat this image as a starting point.
 FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04
@@ -32,10 +32,10 @@ RUN curl -sL https://github.com/zeux/meshoptimizer/releases/download/v1.2/gltfpa
     apt-get update && apt-get install -y unzip && unzip -o /tmp/gp.zip && \
     chmod +x gltfpack && rm /tmp/gp.zip
 
-COPY . /opt/ship3d
+COPY . /opt/shipshape
 # Weights are NOT baked in (~16GB): mount or download into
 # /opt/ComfyUI/models/diffusion_models — see README "Weights".
 
 ENV COMFYUI_URL=http://127.0.0.1:8189
 CMD /opt/venv/bin/python /opt/ComfyUI/main.py --port 8189 --listen 127.0.0.1 & \
-    sleep 30 && /opt/venv/bin/python /opt/ship3d/scripts/fleet_worker.py
+    sleep 30 && /opt/venv/bin/python /opt/shipshape/scripts/fleet_worker.py

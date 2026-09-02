@@ -19,7 +19,7 @@ import requests
 from PIL import Image
 from rembg import remove
 
-ROOT = Path(os.environ.get("SHIP3D_STORE",
+ROOT = Path(os.environ.get("SHIPSHAPE_STORE",
                            "/data/disks/media/clairwave-models/ships"))
 BY_MMSI = ROOT / "by_mmsi"
 QC_DIR = ROOT / "qc"

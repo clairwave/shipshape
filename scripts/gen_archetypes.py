@@ -18,14 +18,14 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from preprocess import preprocess  # noqa: E402
 from produce import produce_one  # noqa: E402
-from ship3d.config import COMFYUI_URL  # noqa: E402
-from ship3d.executor.local import ComfyHTTPExecutor  # noqa: E402
+from shipshape.config import COMFYUI_URL  # noqa: E402
+from shipshape.executor.local import ComfyHTTPExecutor  # noqa: E402
 
 SRC = ROOT / "assets" / "archetypes"
 OUT = ROOT / "out" / "archetypes"
-REMOTE = os.environ.get("SHIP3D_SSH_REMOTE", "jon@cw1")
+REMOTE = os.environ.get("SHIPSHAPE_SSH_REMOTE", "jon@cw1")
 REMOTE_DIR = os.environ.get(
-    "SHIP3D_STORE", "/data/disks/media/clairwave-models/ships") + "/archetypes"
+    "SHIPSHAPE_STORE", "/data/disks/media/clairwave-models/ships") + "/archetypes"
 
 
 async def main():

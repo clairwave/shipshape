@@ -20,9 +20,9 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from postprocess import postprocess  # noqa: E402
-from ship3d.config import COMFYUI_URL  # noqa: E402
-from ship3d.executor.base import JobSpec  # noqa: E402
-from ship3d.executor.local import ComfyHTTPExecutor  # noqa: E402
+from shipshape.config import COMFYUI_URL  # noqa: E402
+from shipshape.executor.base import JobSpec  # noqa: E402
+from shipshape.executor.local import ComfyHTTPExecutor  # noqa: E402
 
 WORKFLOW = "ship_production.json"
 

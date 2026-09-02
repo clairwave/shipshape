@@ -16,7 +16,7 @@ from pathlib import Path
 from fastapi import FastAPI, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
-ROOT = Path(os.environ.get("SHIP3D_STORE",
+ROOT = Path(os.environ.get("SHIPSHAPE_STORE",
                            "/data/disks/media/clairwave-models/ships"))
 BY_MMSI = ROOT / "by_mmsi"
 QC_DIR = ROOT / "qc"

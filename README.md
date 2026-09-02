@@ -1,4 +1,4 @@
-# ship3d
+# shipshape
 
 **A pipeline that turns a single vessel photo into a lightweight, textured 3D
 model — and scales it to a fleet database keyed by MMSI.**

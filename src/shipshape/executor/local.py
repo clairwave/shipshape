@@ -8,8 +8,8 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from ship3d.comfy.client import ComfyClient, apply_overrides, load_workflow
-from ship3d.executor.base import JobResult, JobSpec
+from shipshape.comfy.client import ComfyClient, apply_overrides, load_workflow
+from shipshape.executor.base import JobResult, JobSpec
 
 
 class ComfyHTTPExecutor:

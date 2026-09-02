@@ -27,13 +27,13 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from postprocess import postprocess  # noqa: E402
 from preprocess import preprocess  # noqa: E402
 from produce import produce_one  # noqa: E402
-from ship3d.config import COMFYUI_URL  # noqa: E402
-from ship3d.executor.local import ComfyHTTPExecutor  # noqa: E402
+from shipshape.config import COMFYUI_URL  # noqa: E402
+from shipshape.executor.local import ComfyHTTPExecutor  # noqa: E402
 
 TOKEN = (ROOT / "secrets" / "qc_token").read_text().strip()
-REMOTE = os.environ.get("SHIP3D_SSH_REMOTE", "jon@cw1")
+REMOTE = os.environ.get("SHIPSHAPE_SSH_REMOTE", "jon@cw1")
 STORE = os.environ.get(
-    "SHIP3D_STORE", "/data/disks/media/clairwave-models/ships") + "/by_mmsi"
+    "SHIPSHAPE_STORE", "/data/disks/media/clairwave-models/ships") + "/by_mmsi"
 PIPELINE_TAG = "ship_production.json"
 
 

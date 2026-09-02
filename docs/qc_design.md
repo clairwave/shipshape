@@ -45,7 +45,7 @@ same pattern as the bucket; GLBs are immutable-cacheable (bust via
 ## QC surface 1 — interim ops manager (dal-served, us)
 
 Static viewer/manager at https://www.clairwave.com/dal/qc/ (three.js, same
-bones as ship3d/viewer) + a small FastAPI service on cw1 (`qc-api`,
+bones as shipshape/viewer) + a small FastAPI service on cw1 (`qc-api`,
 k8s or systemd, sqlite-backed):
 
 - `GET  /qc/api/models?status=auto&limit=...` — review queue with meta
@@ -77,7 +77,7 @@ state is a single file to back up alongside the time machine.
 1. `scripts/fleet_worker.py` — queue consumer + by_mmsi writer (wraps
    produce.py), local first
 2. qc-api (FastAPI + sqlite, ~150 lines) + nginx route on cw1
-3. dal QC viewer (adapt ship3d/viewer: queue list, approve/regen buttons,
+3. dal QC viewer (adapt shipshape/viewer: queue list, approve/regen buttons,
    photo upload)
 4. Archetype generation once folders are populated (variants × ~17 classes)
 5. Platform vote endpoint + scene UI — with clairwave integration proper
