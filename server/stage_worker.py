@@ -149,7 +149,11 @@ def main():
     ap.add_argument("--min-days", type=int, default=7)
     ap.add_argument("--mmsi", nargs="*", help="explicit MMSIs (skip csv)")
     ap.add_argument("--retry-days", type=float, default=30)
+    ap.add_argument("--queue", action="store_true",
+                    help="daemon: service 'stage' tasks from the qc-api queue")
     args = ap.parse_args()
+    if args.queue:
+        return queue_loop()
 
     statics = {}
     for line in (QC_DIR / "statics_snapshot.jsonl").read_text().splitlines():
@@ -179,45 +183,87 @@ def main():
             continue
         if time.time() - misses.get(mmsi, 0) < args.retry_days * 86400:
             continue
-        v = statics.get(mmsi, {})
-        imo, name = v.get("imo"), v.get("name")
-        reason = "no statics"
-        try:
-            info = None
-            if imo and int(imo) > 0:
-                info = by_imo(int(imo))
-            if info is None and name:
-                info = by_name(name)
-            if info is None:
-                reason = "no commons photo"
-                raise LookupError(reason)
-            raw = requests.get(info["url"], headers=UA, timeout=30).content
-            cutout = remove(Image.open(io.BytesIO(raw))).convert("RGBA")
-            ok, reason, score = qc_gate(cutout)
-            if not ok:
-                raise LookupError(reason)
-            d.mkdir(parents=True, exist_ok=True)
-            preprocess(cutout).save(d / "photo.png")
-            (d / "stage.json").write_text(json.dumps({
-                "mmsi": mmsi, "days_seen": days, "score": score,
-                "photo_source": info["source"], "photo_page": info["page"],
-                "attribution": info["meta"], "statics": v,
-                "staged": time.time()}, indent=1))
+        ok, note = stage_vessel(mmsi, statics, days=days, enqueue=True)
+        if ok:
+            staged += 1
+        else:
+            failed += 1
+    print(f"=== STAGING DONE: {staged} staged, {failed} misses ===",
+          flush=True)
+
+
+def stage_vessel(mmsi, statics, days=0, enqueue=True):
+    """Commons lookup + QC gate for one vessel. Returns (ok, note)."""
+    d = BY_MMSI / mmsi
+    v = statics.get(mmsi, {})
+    imo, name = v.get("imo"), v.get("name")
+    try:
+        info = None
+        if imo and int(imo) > 0:
+            info = by_imo(int(imo))
+        if info is None and name:
+            info = by_name(name)
+        if info is None:
+            raise LookupError("no commons photo")
+        raw = requests.get(info["url"], headers=UA, timeout=30).content
+        cutout = remove(Image.open(io.BytesIO(raw))).convert("RGBA")
+        ok, reason, score = qc_gate(cutout)
+        if not ok:
+            raise LookupError(reason)
+        d.mkdir(parents=True, exist_ok=True)
+        preprocess(cutout).save(d / "photo.png")
+        (d / "stage.json").write_text(json.dumps({
+            "mmsi": mmsi, "days_seen": days, "score": score,
+            "photo_source": info["source"], "photo_page": info["page"],
+            "attribution": info["meta"], "statics": v,
+            "staged": time.time()}, indent=1))
+        if enqueue:
             requests.post(f"{API}/api/enqueue", json={
                 "mmsi": mmsi, "action": "generate",
                 "note": f"staged score={score}"},
                 headers={"X-QC-Token": TOKEN}, timeout=10).raise_for_status()
-            staged += 1
-            print(f"[staged] {mmsi} {name or ''} score={score}", flush=True)
+        print(f"[staged] {mmsi} {name or ''} score={score}", flush=True)
+        return True, f"score={score}"
+    except Exception as e:
+        reason = str(e) or "error"
+        with MISSES.open("a") as f:
+            f.write(json.dumps({"mmsi": mmsi, "ts": time.time(),
+                                "reason": reason}) + "\n")
+        print(f"[miss] {mmsi} {name or ''}: {reason}", flush=True)
+        return False, reason
+
+
+def queue_loop(idle=60):
+    """Daemon: service 'stage' tasks (public interest) from the queue."""
+    statics_map = {}
+    for line in (QC_DIR / "statics_snapshot.jsonl").read_text().splitlines():
+        try:
+            v = json.loads(line)
+            statics_map[str(v["mmsi"])] = v
+        except Exception:
+            pass
+    hdrs = {"X-QC-Token": TOKEN}
+    print(f"stage queue daemon up ({len(statics_map)} statics)", flush=True)
+    while True:
+        try:
+            rows = requests.get(f"{API}/api/tasks?status=pending&limit=25",
+                                headers=hdrs, timeout=30).json()
+            stage_tasks = [t for t in rows if t["action"] == "stage"]
+            if not stage_tasks:
+                time.sleep(idle)
+                continue
+            for t in stage_tasks:
+                r = requests.post(f"{API}/api/tasks/{t['id']}/claim",
+                                  headers=hdrs, timeout=30)
+                if r.status_code != 200:
+                    continue
+                ok, note = stage_vessel(t["mmsi"], statics_map, enqueue=True)
+                requests.post(f"{API}/api/tasks/{t['id']}/complete",
+                              headers=hdrs, timeout=30,
+                              json={"ok": ok, "note": note})
         except Exception as e:
-            failed += 1
-            reason = str(e) or reason
-            with MISSES.open("a") as f:
-                f.write(json.dumps({"mmsi": mmsi, "ts": time.time(),
-                                    "reason": reason}) + "\n")
-            print(f"[miss] {mmsi} {name or ''}: {reason}", flush=True)
-    print(f"=== STAGING DONE: {staged} staged, {failed} misses ===",
-          flush=True)
+            print(f"[queue-loop error] {e}", flush=True)
+            time.sleep(idle)
 
 
 if __name__ == "__main__":

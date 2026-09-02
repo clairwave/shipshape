@@ -13,7 +13,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException, UploadFile
+from fastapi import FastAPI, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
 ROOT = Path(os.environ.get("SHIPSHAPE_STORE",
@@ -54,6 +54,20 @@ def auth(token: str | None):
         raise HTTPException(401, "bad token")
 
 
+def worker_tokens() -> set:
+    f = Path(__file__).parent / "worker_tokens"
+    return {t.strip() for t in f.read_text().splitlines()
+            if t.strip()} if f.exists() else set()
+
+
+def auth_worker(token: str | None):
+    """Ops token OR a per-contributor worker token (claim/complete/result
+    only — never QC actions or enqueue)."""
+    if not token or (token.strip() != TOKEN
+                     and token.strip() not in worker_tokens()):
+        raise HTTPException(401, "bad token")
+
+
 def meta_path(mmsi: str) -> Path:
     if not mmsi.isdigit() or len(mmsi) > 9:
         raise HTTPException(400, "bad mmsi")
@@ -87,7 +101,7 @@ def enqueue(body: dict, x_qc_token: str | None = Header(None)):
 @app.get("/api/tasks")
 def tasks(status: str = "pending", limit: int = 10,
           x_qc_token: str | None = Header(None)):
-    auth(x_qc_token)
+    auth_worker(x_qc_token)
     with db() as c:
         rows = c.execute("SELECT * FROM tasks WHERE status=? "
                          "ORDER BY id LIMIT ?", (status, limit)).fetchall()
@@ -96,7 +110,7 @@ def tasks(status: str = "pending", limit: int = 10,
 
 @app.post("/api/tasks/{task_id}/claim")
 def claim(task_id: int, x_qc_token: str | None = Header(None)):
-    auth(x_qc_token)
+    auth_worker(x_qc_token)
     with db() as c:
         cur = c.execute("UPDATE tasks SET status='running', updated=? "
                         "WHERE id=? AND status='pending'",
@@ -108,7 +122,7 @@ def claim(task_id: int, x_qc_token: str | None = Header(None)):
 
 @app.post("/api/tasks/{task_id}/complete")
 def complete(task_id: int, body: dict, x_qc_token: str | None = Header(None)):
-    auth(x_qc_token)
+    auth_worker(x_qc_token)
     with db() as c:
         c.execute("UPDATE tasks SET status=?, note=?, updated=? WHERE id=?",
                   ("done" if body.get("ok") else "failed",
@@ -261,6 +275,70 @@ def fleet_search(q: str, limit: int = 25):
                 break
     out.sort(key=lambda r: not r["has_model"])
     return out[:limit]
+
+
+@app.post("/fleet/api/interest")
+def fleet_interest(body: dict, request: Request):
+    """Public demand signal: a viewed vessel with no model queues a staging
+    task (photo lookup + QC gate). Deduped; per-IP daily cap."""
+    mmsi = str(body.get("mmsi", ""))
+    mp = meta_path(mmsi)  # validates mmsi format
+    if (mp.parent / "model.glb").exists():
+        return {"queued": False, "reason": "model exists"}
+    ip = request.headers.get("x-real-ip") or (request.client.host
+                                              if request.client else "?")
+    with db() as c:
+        c.execute("CREATE TABLE IF NOT EXISTS public_req(ip TEXT, ts REAL)")
+        n = c.execute("SELECT count(*) n FROM public_req WHERE ip=? AND ts>?",
+                      (ip, time.time() - 86400)).fetchone()["n"]
+        if n >= 20:
+            raise HTTPException(429, "daily limit reached")
+        dup = c.execute(
+            "SELECT count(*) n FROM tasks WHERE mmsi=? AND status IN "
+            "('pending','running')", (mmsi,)).fetchone()["n"]
+        if dup:
+            return {"queued": False, "reason": "already queued"}
+        done_stage = c.execute(
+            "SELECT count(*) n FROM tasks WHERE mmsi=? AND action='stage' "
+            "AND updated>?", (mmsi, time.time() - 30 * 86400)).fetchone()["n"]
+        if done_stage:
+            return {"queued": False, "reason": "recently attempted"}
+        c.execute("INSERT INTO public_req VALUES(?,?)", (ip, time.time()))
+        c.execute("INSERT INTO tasks(mmsi, action, params, note, created, "
+                  "updated) VALUES(?,?,?,?,?,?)",
+                  (mmsi, "stage", "{}", f"public interest ({ip})",
+                   time.time(), time.time()))
+    return {"queued": True}
+
+
+@app.post("/api/tasks/{task_id}/result")
+async def task_result(task_id: int, model: UploadFile, photo: UploadFile,
+                      meta: UploadFile, x_qc_token: str | None = Header(None)):
+    """HTTP result upload for workers without ssh access (community GPUs)."""
+    auth_worker(x_qc_token)
+    with db() as c:
+        row = c.execute("SELECT * FROM tasks WHERE id=? AND status='running'",
+                        (task_id,)).fetchone()
+    if row is None:
+        raise HTTPException(409, "task not running")
+    mmsi = row["mmsi"]
+    glb = await model.read()
+    if not (1000 < len(glb) < 5_000_000) or glb[:4] != b"glTF":
+        raise HTTPException(400, "invalid glb")
+    m = json.loads((await meta.read()).decode())
+    m.update({"mmsi": mmsi, "kind": "unique", "status": "auto",
+              "task_id": task_id, "uploaded_via": "http"})
+    d = meta_path(mmsi).parent
+    (d / "history").mkdir(parents=True, exist_ok=True)
+    if (d / "model.glb").exists():
+        (d / "model.glb").rename(d / "history" / f"{int(time.time())}.glb")
+    (d / "model.glb").write_bytes(glb)
+    (d / "photo.png").write_bytes(await photo.read())
+    (d / "meta.json").write_text(json.dumps(m, indent=1))
+    with db() as c:
+        c.execute("UPDATE tasks SET status='done', note='http result', "
+                  "updated=? WHERE id=?", (time.time(), task_id))
+    return {"ok": True}
 
 
 @app.post("/fleet/api/vote")

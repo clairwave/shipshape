@@ -3,6 +3,10 @@
 **A pipeline that turns a single vessel photo into a lightweight, textured 3D
 model — and scales it to a fleet database keyed by MMSI.**
 
+**Browse the live database: [www.clairwave.com/fleet](https://www.clairwave.com/fleet/)**
+— search any vessel by MMSI or name, orbit the model, download the GLB.
+Searching a vessel that has no model yet queues it for generation.
+
 Built for [Clairwave](https://www.clairwave.com)'s live AIS terrain scene,
 where up to ~400 ships render at once in three.js. Every model is a
 scene-ready GLB: **≤10k triangles, ~150KB, KTX2-compressed texture,
@@ -86,6 +90,24 @@ of ships in view; Draco would save ~10KB of geometry but decode slower) and
 **KTX2/BasisU** textures (GPU-native, small VRAM footprint). Geometry is
 simplified to a 10k-triangle budget; textures capped at 512px. The generator
 does not control file size — this postprocess does.
+
+## Contribute GPU time
+
+The task queue is open to community workers — a folding@home for ship
+models. A contributor runs the same `fleet_worker` in HTTP mode (no ssh
+access needed): it claims a queued vessel, generates on their GPU, and
+uploads the result back over the API, where it lands in the database subject
+to the same QC gates and community voting as every other model.
+
+```bash
+QC_TOKEN=<your token>  # request one via an issue on this repo
+python scripts/fleet_worker.py --api https://www.clairwave.com/qc \
+    --http-push
+```
+
+`deploy/Dockerfile.worker` packages ComfyUI + the generator for exactly
+this. Tokens are issued per contributor and revocable; results carry
+`uploaded_via: http` in their provenance.
 
 ## Licensing notes
 

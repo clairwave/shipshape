@@ -98,6 +98,11 @@ function show(v){
     if (current) scene.remove(current); current = null;
     $('dl').style.display='none'; $('photo').style.display='none';
     $('attr').textContent = 'no model yet for this vessel';
+    fetch('api/interest', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({mmsi:v.mmsi})}).then(r=>r.json()).then(j=>{
+        if (j.queued) $('attr').textContent =
+          'no model yet — queued for generation, check back later';
+      }).catch(()=>{});
     return;
   }
   $('photo').src = `models/${v.mmsi}/photo.png`; $('photo').style.display='';

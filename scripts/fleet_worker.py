@@ -30,7 +30,8 @@ from produce import produce_one  # noqa: E402
 from shipshape.config import COMFYUI_URL  # noqa: E402
 from shipshape.executor.local import ComfyHTTPExecutor  # noqa: E402
 
-TOKEN = (ROOT / "secrets" / "qc_token").read_text().strip()
+TOKEN = os.environ.get("QC_TOKEN") or \
+    (ROOT / "secrets" / "qc_token").read_text().strip()
 REMOTE = os.environ.get("SHIPSHAPE_SSH_REMOTE", "jon@cw1")
 STORE = os.environ.get(
     "SHIPSHAPE_STORE", "/data/disks/media/clairwave-models/ships") + "/by_mmsi"
@@ -49,7 +50,7 @@ def api(method, path, base, **kw):
     return r.json()
 
 
-def resolve_photo(task, base, workdir: Path) -> Path | None:
+def resolve_photo(task, base, workdir: Path, http=False) -> Path | None:
     """Priority: params.photo_url > reuploaded photo_new.png > photo.png."""
     mmsi = task["mmsi"]
     params = json.loads(task.get("params") or "{}")
@@ -58,6 +59,13 @@ def resolve_photo(task, base, workdir: Path) -> Path | None:
     if url:
         raw.write_bytes(requests.get(url, timeout=120).content)
         return raw
+    if http:
+        r = requests.get(f"{base}/models/{mmsi}/photo.png",
+                         headers={"X-QC-Token": TOKEN}, timeout=60)
+        if r.status_code == 200:
+            raw.write_bytes(r.content)
+            return raw
+        return None
     for fname in ("photo_new.png", "photo.png"):
         r = subprocess.run(["scp", "-o", "BatchMode=yes",
                             f"{REMOTE}:{STORE}/{mmsi}/{fname}", str(raw)],
@@ -67,14 +75,14 @@ def resolve_photo(task, base, workdir: Path) -> Path | None:
     return None
 
 
-async def handle(task, base, executor) -> str:
+async def handle(task, base, executor, http_push=False) -> str:
     mmsi = task["mmsi"]
     action = task["action"]
     if action in ("needs_photo", "use_archetype"):
         return f"{action}: no-op for worker (archetype assignment is serve-time)"
     with tempfile.TemporaryDirectory() as td:
         workdir = Path(td)
-        src = resolve_photo(task, base, workdir)
+        src = resolve_photo(task, base, workdir, http=http_push)
         if src is None:
             raise RuntimeError("no photo available; needs_photo")
         pre = preprocess(src, workdir)
@@ -88,6 +96,17 @@ async def handle(task, base, executor) -> str:
             "pipeline": PIPELINE_TAG, "task_id": task["id"], **row,
         }
         (outdir / "meta.json").write_text(json.dumps(meta, indent=1))
+        if http_push:
+            # community mode: no ssh access — upload result over the api
+            with open(outdir / f"{mmsi}.glb", "rb") as fm, \
+                    open(pre, "rb") as fp, \
+                    open(outdir / "meta.json", "rb") as fj:
+                r = requests.post(
+                    f"{base}/api/tasks/{task['id']}/result",
+                    headers={"X-QC-Token": TOKEN},
+                    files={"model": fm, "photo": fp, "meta": fj}, timeout=300)
+            r.raise_for_status()
+            return json.dumps(row)
         dest = f"{STORE}/{mmsi}"
         ssh(f"mkdir -p {dest}/history && "
             f"[ -f {dest}/model.glb ] && "
@@ -107,10 +126,15 @@ async def main():
     ap.add_argument("--api", default="http://cw1:8877")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--idle", type=float, default=30)
+    ap.add_argument("--http-push", action="store_true",
+                    help="upload results over the api instead of ssh/scp "
+                         "(community workers)")
     args = ap.parse_args()
     executor = ComfyHTTPExecutor(COMFYUI_URL, out_dir=str(ROOT / "out"))
     while True:
-        pending = api("GET", "/api/tasks?status=pending&limit=1", args.api)
+        pending = api("GET", "/api/tasks?status=pending&limit=10", args.api)
+        pending = [t for t in pending
+                   if t["action"] in ("generate", "regen")]
         if not pending:
             if args.once:
                 break
@@ -124,7 +148,8 @@ async def main():
         print(f"[task {task['id']}] {task['action']} mmsi={task['mmsi']}",
               flush=True)
         try:
-            note = await handle(task, args.api, executor)
+            note = await handle(task, args.api, executor,
+                                http_push=args.http_push)
             api("POST", f"/api/tasks/{task['id']}/complete", args.api,
                 json={"ok": True, "note": note})
             print(f"[task {task['id']}] done", flush=True)
