@@ -150,7 +150,7 @@ function showArch(folder, variant){
 async function loadStaged(){
   $('actions').style.visibility = 'hidden';
   $('grid').style.display = 'grid';
-  const rows = await (await fetch('/api/staged?limit=200',
+  const rows = await (await fetch('api/staged?limit=200',
     {headers:{'X-QC-Token':$('token').value.trim()}})).json();
   const grid = $('grid'); grid.innerHTML = '';
   $('label').textContent = '';
@@ -163,7 +163,7 @@ async function loadStaged(){
   for (const r of rows){
     const t = document.createElement('div');
     t.className = 'tile'; t.dataset.mmsi = r.mmsi;
-    t.innerHTML = `<img loading="lazy" src="/models/${r.mmsi}/photo.png">
+    t.innerHTML = `<img loading="lazy" src="models/${r.mmsi}/photo.png">
       <small>${r.name || r.mmsi}${r.length?` · ${r.length}m`:''}</small>`;
     t.onclick = ()=>t.classList.toggle('rej');
     grid.appendChild(t);
@@ -171,7 +171,7 @@ async function loadStaged(){
   document.getElementById('submitReview').onclick = async ()=>{
     const decisions = [...grid.querySelectorAll('.tile')].map(t=>({
       mmsi: t.dataset.mmsi, approve: !t.classList.contains('rej')}));
-    const r = await fetch('/api/staged/decision', {method:'POST', headers:hdrs(),
+    const r = await fetch('api/staged/decision', {method:'POST', headers:hdrs(),
       body: JSON.stringify({decisions})});
     const j = await r.json().catch(()=>({}));
     say(r.ok ? `approved ${j.approved}, rejected ${j.rejected}` : `failed (${r.status})`);
