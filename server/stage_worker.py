@@ -222,16 +222,14 @@ def stage_vessel(mmsi, statics, days=0, enqueue=True):
         preprocess(cutout).save(d / "photo.png")
         (d / "stage.json").write_text(json.dumps({
             "mmsi": mmsi, "days_seen": days, "score": score,
+            "review": "pending",
             "photo_source": info["source"], "photo_page": info["page"],
             "attribution": info["meta"], "statics": v,
             "staged": time.time()}, indent=1))
-        if enqueue:
-            requests.post(f"{API}/api/enqueue", json={
-                "mmsi": mmsi, "action": "generate",
-                "note": f"staged score={score}"},
-                headers={"X-QC-Token": TOKEN}, timeout=10).raise_for_status()
-        print(f"[staged] {mmsi} {name or ''} score={score}", flush=True)
-        return True, f"score={score}"
+        # no auto-enqueue: photos wait for ops review in the QC manager
+        print(f"[staged] {mmsi} {name or ''} score={score} (review pending)",
+              flush=True)
+        return True, f"score={score} review pending"
     except Exception as e:
         reason = str(e) or "error"
         with MISSES.open("a") as f:

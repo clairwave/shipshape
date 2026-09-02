@@ -237,6 +237,62 @@ def archetype_file(folder: str, fname: str):
     return FileResponse(p)
 
 
+# ── staged-photo review: photos held here before any GPU time is spent ──
+
+@app.get("/api/staged")
+def staged(limit: int = 200, x_qc_token: str | None = Header(None)):
+    auth(x_qc_token)
+    out = []
+    for sp in BY_MMSI.glob("*/stage.json"):
+        try:
+            s = json.loads(sp.read_text())
+        except Exception:
+            continue
+        if s.get("review", "pending") != "pending":
+            continue
+        if (sp.parent / "model.glb").exists() \
+                or not (sp.parent / "photo.png").exists():
+            continue
+        st = s.get("statics", {})
+        out.append({"mmsi": s["mmsi"], "name": st.get("name"),
+                    "type": st.get("type"), "length": st.get("length"),
+                    "score": s.get("score"), "days_seen": s.get("days_seen"),
+                    "photo_page": s.get("photo_page")})
+        if len(out) >= limit:
+            break
+    return out
+
+
+@app.post("/api/staged/decision")
+def staged_decision(body: dict, x_qc_token: str | None = Header(None)):
+    auth(x_qc_token)
+    approved = rejected = 0
+    for d in body.get("decisions", []):
+        mmsi = str(d["mmsi"])
+        sp = meta_path(mmsi).parent / "stage.json"
+        if not sp.exists():
+            continue
+        s = json.loads(sp.read_text())
+        if d.get("approve"):
+            s["review"] = "approved"
+            sp.write_text(json.dumps(s, indent=1))
+            with db() as c:
+                c.execute("INSERT INTO tasks(mmsi, action, params, note, "
+                          "created, updated) VALUES(?,?,?,?,?,?)",
+                          (mmsi, "generate", "{}", "photo approved",
+                           time.time(), time.time()))
+            approved += 1
+        else:
+            s["review"] = "rejected"
+            sp.write_text(json.dumps(s, indent=1))
+            (sp.parent / "photo.png").unlink(missing_ok=True)
+            with (QC_DIR / "stage_misses.jsonl").open("a") as f:
+                f.write(json.dumps({"mmsi": mmsi, "ts": time.time(),
+                                    "reason": "ops rejected photo"}) + "\n")
+            rejected += 1
+    return {"approved": approved, "rejected": rejected}
+
+
 # ── public fleet portal (read-only + votes): /fleet/* — no token needed;
 # nginx exposes only this prefix publicly ──
 
