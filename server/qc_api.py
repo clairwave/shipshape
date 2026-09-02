@@ -293,6 +293,31 @@ def staged_decision(body: dict, x_qc_token: str | None = Header(None)):
     return {"approved": approved, "rejected": rejected}
 
 
+@app.post("/api/staged/photo/{mmsi}")
+async def staged_photo(mmsi: str, file: UploadFile,
+                       x_qc_token: str | None = Header(None)):
+    """Ops replaces a staged photo directly (e.g. after rejecting the Commons
+    hit). A human-chosen photo is implicitly approved -> queue generation."""
+    auth(x_qc_token)
+    data = await file.read()
+    if len(data) > 25_000_000:
+        raise HTTPException(413, "photo too large")
+    d = meta_path(mmsi).parent
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "photo.png").write_bytes(data)
+    sp = d / "stage.json"
+    s = json.loads(sp.read_text()) if sp.exists() else {"mmsi": mmsi}
+    s.update({"review": "approved", "photo_source": "ops-upload",
+              "photo_page": None, "staged": time.time()})
+    sp.write_text(json.dumps(s, indent=1))
+    with db() as c:
+        c.execute("INSERT INTO tasks(mmsi, action, params, note, created, "
+                  "updated) VALUES(?,?,?,?,?,?)",
+                  (mmsi, "generate", "{}", "ops photo upload",
+                   time.time(), time.time()))
+    return {"ok": True, "queued": True}
+
+
 # ── public fleet portal (read-only + votes): /fleet/* — no token needed;
 # nginx exposes only this prefix publicly ──
 

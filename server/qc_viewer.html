@@ -37,6 +37,9 @@
                 padding:2px 5px; overflow:hidden; white-space:nowrap; }
   .tile.rej { border-color:#c33; } .tile.rej img { filter:grayscale(1) brightness(.4); }
   .tile.rej::after { content:"✕"; position:absolute; top:4px; right:8px; color:#f66; font-size:22px; }
+  .tile .rep { position:absolute; top:4px; left:4px; padding:2px 7px; font-size:12px;
+               background:#2a4a6acc; z-index:2; }
+  .tile .rep:hover { background:#1d5c2a; }
 </style>
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
@@ -73,6 +76,7 @@
     <button id="btnArch">Use archetype</button>
     <label><input type="file" id="upload" accept="image/*" style="display:none">
       <button onclick="document.getElementById('upload').click()">Upload photo</button></label>
+    <input type="file" id="repFile" accept="image/*" style="display:none">
     <input id="note" placeholder="note (optional)">
   </div>
 </div>
@@ -147,6 +151,8 @@ function showArch(folder, variant){
   });
 }
 
+let repMmsi = null;
+
 async function loadStaged(){
   $('actions').style.visibility = 'hidden';
   $('grid').style.display = 'grid';
@@ -163,9 +169,14 @@ async function loadStaged(){
   for (const r of rows){
     const t = document.createElement('div');
     t.className = 'tile'; t.dataset.mmsi = r.mmsi;
-    t.innerHTML = `<img loading="lazy" src="models/${r.mmsi}/photo.png">
+    t.innerHTML = `<button class="rep" title="upload replacement photo">↻</button>
+      <img loading="lazy" src="models/${r.mmsi}/photo.png">
       <small>${r.name || r.mmsi}${r.length?` · ${r.length}m`:''}</small>`;
     t.onclick = ()=>t.classList.toggle('rej');
+    t.querySelector('.rep').onclick = (e)=>{
+      e.stopPropagation();
+      repMmsi = r.mmsi; $('repFile').click();
+    };
     grid.appendChild(t);
   }
   document.getElementById('submitReview').onclick = async ()=>{
@@ -222,6 +233,16 @@ async function act(action){
   say(r.ok ? `${action} → ${selected.mmsi}` : `failed (${r.status})`);
   if (r.ok) load();
 }
+$('repFile').onchange = async e => {
+  if (!repMmsi || !e.target.files.length) return;
+  const fd = new FormData(); fd.append('file', e.target.files[0]);
+  const r = await fetch(`api/staged/photo/${repMmsi}`, {method:'POST',
+    headers:{'X-QC-Token':$('token').value.trim()}, body:fd});
+  say(r.ok ? `photo replaced for ${repMmsi} — generation queued` : `upload failed (${r.status})`);
+  e.target.value = ''; repMmsi = null;
+  if (r.ok) loadStaged();
+};
+
 $('btnApprove').onclick = ()=>act('approve');
 $('btnRegen').onclick = ()=>act('regen');
 $('btnPhotoReq').onclick = ()=>act('needs_photo');
