@@ -133,8 +133,13 @@ async def main():
     executor = ComfyHTTPExecutor(COMFYUI_URL, out_dir=str(ROOT / "out"))
     while True:
         try:
-            pending = api("GET", "/api/tasks?status=pending&limit=10",
-                          args.api)
+            # server-side action filter: never let unrelated task types at
+            # the head of the queue hide our work (starvation)
+            pending = api("GET", "/api/tasks?status=pending&limit=5"
+                          "&action=generate", args.api)
+            if not pending:
+                pending = api("GET", "/api/tasks?status=pending&limit=5"
+                              "&action=regen", args.api)
         except requests.RequestException as e:
             # api restarting or briefly unreachable — never die over it
             print(f"[poll error] {e}", flush=True)

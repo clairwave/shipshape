@@ -169,6 +169,8 @@ def action(body: dict, x_qc_token: str | None = Header(None)):
         m["status"] = {"regen": "regen_queued", "needs_photo": "needs_photo",
                        "use_archetype": "auto"}[act]
         mp.write_text(json.dumps(m, indent=1))
+    if act != "regen":
+        return {"ok": True}  # metadata-only actions: no worker task needed
     return enqueue({"mmsi": mmsi, "action": act,
                     "params": body.get("params", {}),
                     "note": body.get("note", "")}, x_qc_token)
