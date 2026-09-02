@@ -99,6 +99,32 @@ def by_name(name):
     return None
 
 
+def by_openverse(name):
+    """CC-licensed aggregator (Flickr CC, museums...) — name match only, so
+    precision is weaker; the ops review gate catches mismatches. Anonymous
+    rate limits are tight; register an app for 10k/day if this rung earns
+    its keep."""
+    name = (name or "").strip()
+    if len(name) < 4:
+        return None
+    try:
+        r = requests.get("https://api.openverse.org/v1/images/", params={
+            "q": f'"{name}" ship', "license": "cc0,by,by-sa",
+            "page_size": 5}, headers=UA, timeout=10)
+        if r.status_code != 200:
+            return None
+        for res in r.json().get("results", []):
+            if name.lower() in (res.get("title") or "").lower():
+                return {"url": res["url"],
+                        "page": res.get("foreign_landing_url"),
+                        "meta": {"Artist": res.get("creator") or "",
+                                 "LicenseShortName": res.get("license") or ""},
+                        "source": "openverse"}
+    except requests.RequestException:
+        pass
+    return None
+
+
 def qc_gate(cutout: Image.Image):
     """Cheap checks on the rembg RGBA cutout. Returns (ok, reason, score)."""
     import numpy as np
@@ -207,8 +233,10 @@ def stage_vessel(mmsi, statics, days=0, enqueue=True):
             info = by_imo(int(imo))
         if info is None and name:
             info = by_name(name)
+        if info is None and name:
+            info = by_openverse(name)
         if info is None:
-            raise LookupError("no commons photo")
+            raise LookupError("no photo found (commons + openverse)")
         raw = requests.get(info["url"], headers=UA, timeout=30).content
         if len(raw) > 25_000_000:
             raise LookupError(f"photo too large ({len(raw)>>20}MB)")
