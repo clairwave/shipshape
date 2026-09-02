@@ -19,6 +19,10 @@ import requests
 from PIL import Image
 from rembg import remove
 
+# a handful of Commons originals are 100+ megapixel — decoding one can eat
+# gigabytes and starve the host. Hard-cap decode size; oversized -> miss.
+Image.MAX_IMAGE_PIXELS = 40_000_000
+
 ROOT = Path(os.environ.get("SHIPSHAPE_STORE",
                            "/data/disks/media/clairwave-models/ships"))
 BY_MMSI = ROOT / "by_mmsi"
@@ -206,7 +210,11 @@ def stage_vessel(mmsi, statics, days=0, enqueue=True):
         if info is None:
             raise LookupError("no commons photo")
         raw = requests.get(info["url"], headers=UA, timeout=30).content
-        cutout = remove(Image.open(io.BytesIO(raw))).convert("RGBA")
+        if len(raw) > 25_000_000:
+            raise LookupError(f"photo too large ({len(raw)>>20}MB)")
+        src = Image.open(io.BytesIO(raw))
+        src.thumbnail((2048, 2048))  # bound rembg memory before inference
+        cutout = remove(src).convert("RGBA")
         ok, reason, score = qc_gate(cutout)
         if not ok:
             raise LookupError(reason)
