@@ -246,8 +246,9 @@ def queue_loop(idle=60):
     print(f"stage queue daemon up ({len(statics_map)} statics)", flush=True)
     while True:
         try:
-            rows = requests.get(f"{API}/api/tasks?status=pending&limit=25",
-                                headers=hdrs, timeout=30).json()
+            rows = requests.get(
+                f"{API}/api/tasks?status=pending&limit=25&action=stage",
+                headers=hdrs, timeout=30).json()
             stage_tasks = [t for t in rows if t["action"] == "stage"]
             if not stage_tasks:
                 time.sleep(idle)

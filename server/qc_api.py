@@ -100,11 +100,17 @@ def enqueue(body: dict, x_qc_token: str | None = Header(None)):
 
 @app.get("/api/tasks")
 def tasks(status: str = "pending", limit: int = 10,
+          action: str | None = None,
           x_qc_token: str | None = Header(None)):
     auth_worker(x_qc_token)
     with db() as c:
-        rows = c.execute("SELECT * FROM tasks WHERE status=? "
-                         "ORDER BY id LIMIT ?", (status, limit)).fetchall()
+        if action:
+            rows = c.execute("SELECT * FROM tasks WHERE status=? AND action=? "
+                             "ORDER BY id LIMIT ?",
+                             (status, action, limit)).fetchall()
+        else:
+            rows = c.execute("SELECT * FROM tasks WHERE status=? "
+                             "ORDER BY id LIMIT ?", (status, limit)).fetchall()
     return [dict(r) for r in rows]
 
 
