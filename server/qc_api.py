@@ -429,6 +429,40 @@ def fleet_interest(body: dict, request: Request):
     return {"queued": True}
 
 
+@app.post("/fleet/api/interest_batch")
+def fleet_interest_batch(body: dict, request: Request):
+    """Platform demand signal: the terrain scene reports every vessel in view
+    that resolved to an archetype/none. Deduped like /interest; higher cap
+    because one bbox change can carry hundreds of vessels."""
+    mmsis = [str(m) for m in body.get("mmsis", [])][:300]
+    ip = request.headers.get("x-real-ip") or (request.client.host
+                                              if request.client else "?")
+    queued = 0
+    with db() as c:
+        c.execute("CREATE TABLE IF NOT EXISTS public_req(ip TEXT, ts REAL)")
+        n = c.execute("SELECT count(*) n FROM public_req WHERE ip=? AND ts>?",
+                      (ip, time.time() - 86400)).fetchone()["n"]
+        budget = max(0, 2000 - n)
+        for mmsi in mmsis:
+            if queued >= budget or not mmsi.isdigit() or len(mmsi) > 9:
+                continue
+            if (BY_MMSI / mmsi / "model.glb").exists():
+                continue
+            if c.execute("SELECT 1 FROM tasks WHERE mmsi=? AND (status IN "
+                         "('pending','running') OR (action='stage' AND updated>?))",
+                         (mmsi, time.time() - 30 * 86400)).fetchone():
+                continue
+            if (BY_MMSI / mmsi / "stage.json").exists():
+                continue  # already staged (in review) or decided
+            c.execute("INSERT INTO public_req VALUES(?,?)", (ip, time.time()))
+            c.execute("INSERT INTO tasks(mmsi, action, params, note, created, "
+                      "updated) VALUES(?,?,?,?,?,?)",
+                      (mmsi, "stage", "{}", f"platform view ({ip})",
+                       time.time(), time.time()))
+            queued += 1
+    return {"queued": queued, "considered": len(mmsis)}
+
+
 @app.post("/api/tasks/{task_id}/result")
 async def task_result(task_id: int, model: UploadFile, photo: UploadFile,
                       meta: UploadFile, x_qc_token: str | None = Header(None)):
