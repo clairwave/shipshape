@@ -77,6 +77,10 @@
     <button id="rotL" title="rotate 90° left">⟲90</button>
     <button id="rot180" title="flip bow/stern">180</button>
     <button id="rotR" title="rotate 90° right">⟳90</button>
+    <button id="rotL5" title="-5°">-5</button>
+    <button id="rotL1" title="-1°">-1</button>
+    <button id="rotR1" title="+1°">+1</button>
+    <button id="rotR5" title="+5°">+5</button>
     <button id="saveAlign" title="bake orientation into the GLB (bow=+Z)" style="display:none">Save align</button>
     <label><input type="file" id="upload" accept="image/*" style="display:none">
       <button onclick="document.getElementById('upload').click()">Upload photo</button></label>
@@ -119,10 +123,10 @@ loader.setMeshoptDecoder(MeshoptDecoder); loader.setKTX2Loader(ktx2);
 (function animate(){ requestAnimationFrame(animate); controls.update();
   renderer.render(scene, camera); })();
 
-let current = null, selected = null, pendingYaw = 0, bowArrow = null;
+let current = null, selected = null, pendingYaw = 0, bowArrow = null, currentArch = null;
 
 function setPending(deg){
-  pendingYaw = (pendingYaw + deg) % 360;
+  pendingYaw = ((pendingYaw + deg + 540) % 360) - 180;
   if (current) current.rotation.y = THREE.MathUtils.degToRad(pendingYaw);
   $('saveAlign').style.display = pendingYaw ? '' : 'none';
   $('saveAlign').textContent = `Save align (${pendingYaw}°)`;
@@ -130,15 +134,22 @@ function setPending(deg){
 $('rotL').onclick = ()=>setPending(90);
 $('rotR').onclick = ()=>setPending(-90);
 $('rot180').onclick = ()=>setPending(180);
+$('rotL5').onclick = ()=>setPending(-5);
+$('rotL1').onclick = ()=>setPending(-1);
+$('rotR1').onclick = ()=>setPending(1);
+$('rotR5').onclick = ()=>setPending(5);
 $('saveAlign').onclick = async ()=>{
-  if (!selected || !pendingYaw) return;
+  if (!pendingYaw || (!selected && !currentArch)) return;
+  const body = currentArch ? {archetype: currentArch, yaw_deg: pendingYaw}
+                           : {mmsi: selected.mmsi, yaw_deg: pendingYaw};
   const r = await fetch('api/align', {method:'POST', headers:hdrs(),
-    body: JSON.stringify({mmsi:selected.mmsi, yaw_deg:pendingYaw})});
+    body: JSON.stringify(body)});
   say(r.ok ? `alignment saved (${pendingYaw}°)` : `failed (${r.status})`);
-  if (r.ok) show(selected);
+  if (r.ok) { if (currentArch) { const [f,v]=currentArch.split('/'); showArch(f,v); } else show(selected); }
 };
 
 function show(m){
+  currentArch = null;
   pendingYaw = 0; $('saveAlign').style.display = 'none';
   selected = m;
   document.querySelectorAll('.row').forEach(r=>r.classList.toggle('sel', r.dataset.mmsi===m.mmsi));
@@ -162,12 +173,13 @@ function show(m){
 }
 
 function showArch(folder, variant){
-  selected = null;
+  selected = null; currentArch = folder + '/' + variant;
+  pendingYaw = 0; $('saveAlign').style.display = 'none';
   document.querySelectorAll('.row').forEach(r=>
     r.classList.toggle('sel', r.dataset.mmsi===folder+'/'+variant));
   $('label').textContent = `${folder} / ${variant}`;
   $('photo').removeAttribute('src'); $('photo').style.display='none';
-  loader.load(`archetypes/${folder}/${variant}`, g => {
+  loader.load(`archetypes/${folder}/${variant}?${Date.now()}`, g => {
     if (current) scene.remove(current);
     current = g.scene;
     current.traverse(o=>{ if(o.isMesh && !o.geometry.getAttribute('normal'))
@@ -177,6 +189,10 @@ function showArch(folder, variant){
     current.position.sub(c);
     camera.position.set(s*0.95, s*0.5, s*0.95); controls.target.set(0,0,0);
     scene.add(current);
+    if (bowArrow) scene.remove(bowArrow);
+    bowArrow = new THREE.ArrowHelper(new THREE.Vector3(0,0,1),
+      new THREE.Vector3(0,0,0), s*0.65, 0x33ff88, s*0.09, s*0.045);
+    scene.add(bowArrow);
   });
 }
 
@@ -225,7 +241,9 @@ async function load(){
   $('grid').style.display = 'none';
   if ($('mode').value === 'staged'){ list.innerHTML=''; return loadStaged(); }
   if ($('mode').value === 'archetypes'){
-    $('actions').style.visibility = 'hidden';
+    $('actions').style.visibility = '';
+    for (const id of ['btnApprove','btnRegen','btnPhotoReq','btnArch','note'])
+      $(id).style.display = 'none';
     const folders = await (await fetch('api/archetypes')).json();
     let first = null;
     for (const f of folders){
@@ -241,6 +259,9 @@ async function load(){
     return;
   }
   $('actions').style.visibility = '';
+  currentArch = null;
+  for (const id of ['btnApprove','btnRegen','btnPhotoReq','btnArch','note'])
+    $(id).style.display = '';
   const st = $('filter').value;
   const r = await fetch(`api/models?limit=200${st?`&status=${st}`:''}`);
   const models = await r.json();

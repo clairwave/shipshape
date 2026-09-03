@@ -301,6 +301,15 @@ def align(body: dict, x_qc_token: str | None = Header(None)):
     bow = +Z, up = +Y). Composes with any existing alignment."""
     auth(x_qc_token)
     from glb_align import apply_yaw
+    if body.get("archetype"):
+        folder, fname = str(body["archetype"]).split("/", 1)
+        if ".." in folder or ".." in fname or "/" in fname:
+            raise HTTPException(400, "bad archetype")
+        glb = ROOT / "archetypes" / folder / fname
+        if not glb.exists():
+            raise HTTPException(404, "no archetype")
+        total = apply_yaw(glb, float(body.get("yaw_deg", 0)))
+        return {"ok": True, "align_yaw": total, "archetype": body["archetype"]}
     mmsi = str(body["mmsi"])
     glb = meta_path(mmsi).parent / "model.glb"
     if not glb.exists():
@@ -477,6 +486,66 @@ async def fleet_photo(mmsi: str, file: UploadFile, request: Request):
               "photo_page": None, "uploader_ip": ip, "staged": time.time()})
     sp.write_text(json.dumps(s, indent=1))
     return {"ok": True, "review": "pending"}
+
+
+_taxonomy: dict = {}
+
+
+def taxonomy():
+    if not _taxonomy:
+        f = Path(__file__).parent / "taxonomy.json"
+        if f.exists():
+            _taxonomy.update(json.loads(f.read_text()))
+    return _taxonomy
+
+
+def archetype_for(ship_type, loa, beam):
+    """AIS type code + dims -> archetype folder (assets/archetypes/taxonomy)."""
+    tx = taxonomy()
+    code = int(ship_type or 0)
+    for rule in tx.get("code_map", []):
+        if not any(lo <= code <= hi for lo, hi in rule["codes"]):
+            continue
+        if "folder" in rule:
+            return rule["folder"]
+        for r in rule.get("rules", []):
+            d = r.get("dims", {})
+            if "loa_min" in d and not (loa and loa >= d["loa_min"]):
+                continue
+            if "beam_loa_ratio_max" in d and not (
+                    loa and beam and beam / loa <= d["beam_loa_ratio_max"]):
+                continue
+            return r["folder"]
+    return "other_generic"
+
+
+@app.get("/fleet/api/resolve/{mmsi}")
+def fleet_resolve(mmsi: str):
+    """One call per vessel for the platform: unique model if it exists,
+    else the class archetype variant (deterministic by mmsi), with the
+    alignment yaw and AIS dims for scaling."""
+    mp = meta_path(mmsi)
+    st = statics().get(mmsi, {})
+    base = {"mmsi": mmsi, "name": st.get("name"), "type": st.get("type"),
+            "length": st.get("length"), "beam": st.get("beam")}
+    if (mp.parent / "model.glb").exists():
+        m = json.loads(mp.read_text()) if mp.exists() else {}
+        return {**base, "kind": "unique",
+                "url": f"/fleet/models/{mmsi}/model.glb",
+                "yaw": m.get("align_yaw", 0), "aligned": m.get("aligned", False),
+                "status": m.get("status")}
+    folder = archetype_for(st.get("type"), st.get("length"), st.get("beam"))
+    variants = sorted(p.name for p in (ROOT / "archetypes" / folder).glob("*.glb"))         if (ROOT / "archetypes" / folder).exists() else []
+    if not variants:
+        return {**base, "kind": "none", "archetype_class": folder}
+    v = variants[int(mmsi) % len(variants)]
+    return {**base, "kind": "archetype", "archetype_class": folder,
+            "variant": v, "url": f"/fleet/archetypes/{folder}/{v}", "yaw": 0}
+
+
+@app.get("/fleet/archetypes/{folder}/{fname}")
+def fleet_archetype_file(folder: str, fname: str):
+    return archetype_file(folder, fname)
 
 
 @app.post("/fleet/api/vote")
