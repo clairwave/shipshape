@@ -155,6 +155,10 @@ async function vote(n){
 }
 $('up').onclick = ()=>vote(1); $('down').onclick = ()=>vote(-1);
 
+// deep link: /fleet/?q=<mmsi or name> (used by clairwave-mcp open_url)
+const q0 = new URLSearchParams(location.search).get('q');
+if (q0) { $('q').value = q0; search(); }
+
 $('contrib').onclick = ()=>{ if (selected) $('contribFile').click(); };
 $('contribFile').onchange = async e => {
   if (!selected || !e.target.files.length) return;
